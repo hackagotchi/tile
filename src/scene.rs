@@ -3,6 +3,8 @@ use controls::Controls;
 use iced_wgpu::{wgpu, Renderer};
 use iced_winit::{program, Debug};
 
+const SAMPLES: u32 = 2;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct Vertex {
@@ -120,6 +122,7 @@ pub struct Scene {
     uniforms: Uniforms,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
+    multisampled_framebuffer: wgpu::TextureView,
     depth_texture: texture::Texture,
     diffuse_texture: texture::Texture,
     diffuse_bind_group: wgpu::BindGroup,
@@ -214,9 +217,14 @@ impl Scene {
             "depth_texture",
         );
 
-        let diffuse_bytes = include_bytes!("dirt.png");
-        let (diffuse_texture, cmd_buffer) =
-            texture::Texture::from_bytes(&rs.device, diffuse_bytes, "hat.png").unwrap();
+        let (diffuse_texture, cmd_buffer) = texture::Texture::from_bytes(
+            &rs.device,
+            vec![
+                (include_bytes!("ice.png"), "ice.png"),
+                (include_bytes!("snow.png"), "snow.png"),
+            ],
+            "tile textures"
+        ).unwrap();
         rs.queue.submit(&[cmd_buffer]);
 
         let texture_bind_group_layout =
@@ -228,7 +236,7 @@ impl Scene {
                             visibility: wgpu::ShaderStage::FRAGMENT,
                             ty: wgpu::BindingType::SampledTexture {
                                 multisampled: false,
-                                dimension: wgpu::TextureViewDimension::D2,
+                                dimension: wgpu::TextureViewDimension::D2Array,
                                 component_type: wgpu::TextureComponentType::Uint,
                             },
                         },
@@ -286,7 +294,7 @@ impl Scene {
                 "main",
                 None,
             )
-            .unwrap();
+            .unwrap_or_else(|e| panic!("couldn't compile shader: {}", e));
 
         let vs_data = wgpu::read_spirv(std::io::Cursor::new(vs_spirv.as_binary_u8())).unwrap();
         let fs_data = wgpu::read_spirv(std::io::Cursor::new(fs_spirv.as_binary_u8())).unwrap();
@@ -340,10 +348,16 @@ impl Scene {
                     index_format: wgpu::IndexFormat::Uint16,
                     vertex_buffers: &[Vertex::desc()],
                 },
-                sample_count: 1,
+                sample_count: SAMPLES,
                 sample_mask: !0,
                 alpha_to_coverage_enabled: false,
             });
+
+        let multisampled_framebuffer = Self::create_multisampled_framebuffer(
+            &rs.device,
+            &rs.swap_chain_descriptor,
+            SAMPLES
+        );
 
         Self {
             controls,
@@ -354,6 +368,7 @@ impl Scene {
             uniforms,
             uniform_buffer,
             uniform_bind_group,
+            multisampled_framebuffer,
             depth_texture,
             diffuse_texture,
             diffuse_bind_group,
@@ -361,14 +376,49 @@ impl Scene {
         }
     }
 
-    pub fn resize(&mut self, (w, h): (u32, u32), rs: &RenderingState) {
-        self.controls.queue_message(controls::Message::Resize(w, h));
+    fn create_multisampled_framebuffer(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        sample_count: u32,
+    ) -> wgpu::TextureView {
+        let multisampled_texture_extent = wgpu::Extent3d {
+            width: sc_desc.width,
+            height: sc_desc.height,
+            depth: 1,
+        };
+        let multisampled_frame_descriptor = &wgpu::TextureDescriptor {
+            size: multisampled_texture_extent,
+            array_layer_count: 1,
+            mip_level_count: 1,
+            sample_count: sample_count,
+            dimension: wgpu::TextureDimension::D2,
+            format: sc_desc.format,
+            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            label: None,
+        };
+
+        device
+            .create_texture(multisampled_frame_descriptor)
+            .create_default_view()
+    }
+
+    pub fn resize(
+        &mut self,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        device: &wgpu::Device,
+    ) {
+        self.controls.queue_message(
+            controls::Message::Resize(sc_desc.width, sc_desc.height)
+        );
 
         self.depth_texture = texture::Texture::create_depth_texture(
-            &rs.device,
-            &rs.swap_chain_descriptor,
+            device,
+            sc_desc,
             "depth_texture",
         );
+
+        self.multisampled_framebuffer =
+            Self::create_multisampled_framebuffer(device, sc_desc, SAMPLES);
     }
 
     pub fn update(&mut self, encoder: &mut wgpu::CommandEncoder, rs: &RenderingState) {
@@ -406,7 +456,7 @@ impl Scene {
                             position: nalgebra::Vector3::new(
                                 (x * 2 + (y & 1)) as f32 / 2.0 * w,
                                 ((3.0 / 4.0) * y as f32) * h,
-                                dbg!(perlin.get([x as f64 / g, y as f64 / g]) as f32 * e),
+                                perlin.get([x as f64 / g, y as f64 / g]) as f32 * e,
                             ),
                             ..Default::default()
                         }
@@ -438,18 +488,33 @@ impl Scene {
     }
 
     pub fn render(&mut self, encoder: &mut wgpu::CommandEncoder, frame_view: &wgpu::TextureView) {
+
+
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                attachment: frame_view,
-                resolve_target: None,
-                load_op: wgpu::LoadOp::Clear,
-                store_op: wgpu::StoreOp::Store,
-                clear_color: wgpu::Color {
-                    r: 0.1,
-                    g: 0.2,
-                    b: 0.3,
-                    a: 1.0,
-                },
+            color_attachments: &[{
+                use wgpu::RenderPassColorAttachmentDescriptor as ColorPass;
+
+                let base: ColorPass = ColorPass {
+                    load_op: wgpu::LoadOp::Clear,
+                    store_op: wgpu::StoreOp::Store,
+                    clear_color: wgpu::Color {
+                        r: 0.1,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
+                    },
+                    attachment: &frame_view,
+                    resolve_target: None,
+                };
+
+                match SAMPLES {
+                    1 => base,
+                    _ => ColorPass {
+                        attachment: &self.multisampled_framebuffer,
+                        resolve_target: Some(&frame_view),
+                        ..base
+                    },
+                }
             }],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
                 attachment: &self.depth_texture.view,

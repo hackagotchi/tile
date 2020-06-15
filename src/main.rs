@@ -56,7 +56,7 @@ fn main() {
                     },
                     WindowEvent::Resized(new_size) => {
                         rs.resize((new_size.width, new_size.height), &window);
-                        scene.resize((new_size.width, new_size.height), &rs);
+                        scene.resize(&rs.swap_chain_descriptor, &rs.device);
                     }
                     _ => {}
                 }
