@@ -1,5 +1,5 @@
 use iced_wgpu::{wgpu, Backend, Renderer, Settings};
-use iced_winit::{futures, winit, Debug};
+use iced_winit::{winit, Debug};
 use winit::{
     event::{Event, ModifiersState, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -7,14 +7,11 @@ use winit::{
 
 mod camera;
 mod controls;
-mod rendering_state;
-mod scene;
-mod texture;
-use rendering_state::RenderingState;
-use scene::Scene;
+mod render;
+use render::{RenderingState, Scene};
 
 fn main() {
-    use futures::executor::block_on;
+    pretty_env_logger::init();
 
     let event_loop = EventLoop::new();
     let window = winit::window::WindowBuilder::new()
@@ -30,7 +27,7 @@ fn main() {
     let mut renderer = Renderer::new(Backend::new(&mut rs.device, Settings::default()));
 
     // Since main can't be async, we're going to need to block
-    let mut scene = block_on(Scene::new(&rs, &mut renderer, &mut debug));
+    let mut scene = Scene::new(&rs, &mut renderer, &mut debug);
 
     event_loop.run(move |event, _, control_flow| {
         // You should change this if you want to render continuosly
@@ -93,7 +90,7 @@ fn main() {
                 // We draw the scene first
                 // let program = scene.controls.program();
                 scene.update(&mut encoder, &rs);
-                scene.render(&mut encoder, &frame.view);
+                scene.render(&mut encoder, &frame.view, &rs);
 
                 // then iced on top
                 let mouse_interaction = renderer.backend_mut().draw(

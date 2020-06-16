@@ -8,8 +8,10 @@ use std::collections::HashMap;
 
 mod camera;
 use camera::CameraControls;
+
 pub mod tiling;
 pub use style::DarkIce;
+
 use tiling::TilingControls;
 
 #[derive(Debug, Clone)]
