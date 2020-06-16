@@ -1,5 +1,4 @@
-use iced_wgpu::{wgpu, Backend, Renderer, Settings};
-use iced_winit::{winit, Debug};
+use iced_winit::winit;
 use winit::{
     event::{Event, ModifiersState, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -8,7 +7,7 @@ use winit::{
 mod camera;
 mod controls;
 mod render;
-use render::{RenderingState, Scene};
+use render::Scene;
 
 fn main() {
     pretty_env_logger::init();
@@ -19,15 +18,10 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut rs = RenderingState::new(&window);
-
-    // Initialize iced
     let mut modifiers = ModifiersState::default();
-    let mut debug = Debug::new();
-    let mut renderer = Renderer::new(Backend::new(&mut rs.device, Settings::default()));
 
     // Since main can't be async, we're going to need to block
-    let mut scene = Scene::new(&rs, &mut renderer, &mut debug);
+    let mut scene = Scene::new(&window);
 
     event_loop.run(move |event, _, control_flow| {
         // You should change this if you want to render continuosly
@@ -52,8 +46,7 @@ fn main() {
                         _ => {}
                     },
                     WindowEvent::Resized(new_size) => {
-                        rs.resize((new_size.width, new_size.height), &window);
-                        scene.resize(&rs.swap_chain_descriptor, &rs.device);
+                        scene.resize((new_size.width, new_size.height), &window);
                     }
                     _ => {}
                 }
@@ -66,48 +59,13 @@ fn main() {
                 }
             }
             Event::MainEventsCleared => {
-                // We update iced
-                let _ = scene.controls.update(
-                    None,
-                    rs.viewport.logical_size(),
-                    &mut renderer,
-                    &mut debug,
-                );
+                // We update the scene
+                scene.update();
 
                 // and request a redraw
                 window.request_redraw();
             }
-            Event::RedrawRequested(_) => {
-                let frame = rs
-                    .swap_chain
-                    .get_next_texture()
-                    .expect("Timeout getting texture");
-
-                let mut encoder = rs
-                    .device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-
-                // We draw the scene first
-                // let program = scene.controls.program();
-                scene.update(&mut encoder, &rs);
-                scene.render(&mut encoder, &frame.view, &rs);
-
-                // then iced on top
-                let mouse_interaction = renderer.backend_mut().draw(
-                    &mut rs.device,
-                    &mut encoder,
-                    &frame.view,
-                    &rs.viewport,
-                    scene.controls.primitive(),
-                    &debug.overlay(),
-                );
-
-                rs.queue.submit(&[encoder.finish()]);
-
-                // And update the mouse cursor
-                window
-                    .set_cursor_icon(iced_winit::conversion::mouse_interaction(mouse_interaction));
-            }
+            Event::RedrawRequested(_) => scene.render(&window),
             _ => {}
         }
     });

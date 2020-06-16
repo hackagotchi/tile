@@ -1,6 +1,7 @@
 use crate::{controls::{self, Controls}, camera::Camera};
 use iced_wgpu::{wgpu, Renderer};
-use iced_winit::{program, Debug};
+use iced_winit::{winit, program, Debug};
+use winit::window::Window;
 
 mod pipeline;
 mod texture;
@@ -14,10 +15,21 @@ use pipeline::{WorldPipeline, NoSrgbPipeline};
 pub struct Scene {
     main_pipeline: WorldPipeline,
     no_srgb_pipeline: NoSrgbPipeline,
+    rs: RenderingState,
+    renderer: Renderer,
+    debug: Debug,
     pub controls: program::State<Controls>,
 }
 impl Scene {
-    pub fn new(rs: &RenderingState, renderer: &mut Renderer, debug: &mut Debug) -> Self {
+    pub fn new(window: &Window) -> Self {
+        use iced_wgpu::{Backend, Settings};
+
+        let mut rs = RenderingState::new(&window);
+
+        // Initialize iced
+        let mut debug = Debug::new();
+        let mut renderer = Renderer::new(Backend::new(&mut rs.device, Settings::default()));
+
         let camera = Camera::new(
             rs.swap_chain_descriptor.width as f32,
             rs.swap_chain_descriptor.height as f32,
@@ -25,8 +37,8 @@ impl Scene {
         let mut controls = program::State::new(
             Controls::new(camera),
             rs.viewport.logical_size(),
-            renderer,
-            debug,
+            &mut renderer,
+            &mut debug,
         );
         controls.queue_message(
             controls::Message::Tiling(
@@ -43,58 +55,97 @@ impl Scene {
         );
 
         let main_pipeline = WorldPipeline::new(
-            rs,
+            &rs,
             controls.program(),
             multisampled_framebuffer.texture_view
         );
         let no_srgb_pipeline = NoSrgbPipeline::new(
-            rs,
+            &rs,
             multisampled_framebuffer.no_srgb_texture_view
         );
 
         Self {
             no_srgb_pipeline,
             main_pipeline,
-            controls
+            controls,
+            rs,
+            renderer,
+            debug
         }
     }
 
     pub fn resize(
         &mut self,
-        sc_desc: &wgpu::SwapChainDescriptor,
-        device: &wgpu::Device,
+        (w, h): (u32, u32),
+        window: &Window
     ) {
+        self.rs.resize((w, h), &window);
+
         self.controls.queue_message(
-            controls::Message::Resize(sc_desc.width, sc_desc.height)
+            controls::Message::Resize(w, h)
         );
 
-        self.main_pipeline.resize(sc_desc, device);
+        self.main_pipeline.resize(&self.rs.swap_chain_descriptor, &self.rs.device);
 
         let multisampled_framebuffer = MultisampledFramebuffer::new(
-            device,
-            sc_desc,
+            &self.rs.device,
+            &self.rs.swap_chain_descriptor,
             pipeline::world::SAMPLES
         );
         self.no_srgb_pipeline.no_srgb_framebuffer = multisampled_framebuffer.no_srgb_texture_view;
         self.main_pipeline.framebuffer = multisampled_framebuffer.texture_view;
     }
 
-    pub fn update(
-        &mut self,
-        encoder: &mut wgpu::CommandEncoder,
-        rs: &RenderingState,
-    ) {
-        self.main_pipeline.update(encoder, rs, &mut self.controls);
+    pub fn update(&mut self) {
+        let mut encoder = self
+            .rs
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        let _ = self.controls.update(
+            None,
+            self.rs.viewport.logical_size(),
+            &mut self.renderer,
+            &mut self.debug,
+        );
+
+        self.main_pipeline.update(&mut encoder, &self.rs, &mut self.controls);
+
+        self.rs.queue.submit(&[encoder.finish()]);
     }
 
-    pub fn render(
-        &mut self,
-        encoder: &mut wgpu::CommandEncoder,
-        frame_view: &wgpu::TextureView,
-        rs: &RenderingState
-    ) {
-        self.main_pipeline.render(encoder, &self.no_srgb_pipeline.no_srgb_framebuffer);
-        self.no_srgb_pipeline.render(encoder, frame_view);
+    pub fn render(&mut self, window: &Window) {
+        let frame = self
+            .rs
+            .swap_chain
+            .get_next_texture()
+            .expect("Timeout getting texture");
+
+        let mut encoder = self
+            .rs
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        self.main_pipeline.render(&mut encoder, &self.no_srgb_pipeline.no_srgb_framebuffer);
+        self.no_srgb_pipeline.render(&mut encoder, &frame.view);
+
+        // And update the mouse cursor
+        window.set_cursor_icon(iced_winit::conversion::mouse_interaction(
+            self
+                .renderer
+                .backend_mut()
+                .draw(
+                    &mut self.rs.device,
+                    &mut encoder,
+                    &frame.view,
+                    &self.rs.viewport,
+                    self.controls.primitive(),
+                    &self.debug.overlay(),
+                )
+        ));
+
+        self.rs.queue.submit(&[encoder.finish()]);
+
     }
 }
 

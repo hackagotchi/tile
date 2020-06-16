@@ -23,7 +23,7 @@ impl MultisampledFramebuffer {
             sample_count,
             format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
-            label: Some("no srgb buffer"),
+            label: Some("multisampled framebuffer"),
         };
 
         Self {
@@ -32,7 +32,7 @@ impl MultisampledFramebuffer {
                 .create_default_view(),
             no_srgb_texture_view: device
                 .create_texture(&wgpu::TextureDescriptor {
-                    label: Some("no_srgb_texture buffer for dodging intel gpu bugs"),
+                    label: Some("no_srgb_texture for dodging intel gpu bugs"),
                     usage: wgpu::TextureUsage::COPY_DST
                         | wgpu::TextureUsage::OUTPUT_ATTACHMENT
                         | wgpu::TextureUsage::SAMPLED,
