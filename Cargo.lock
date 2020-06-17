@@ -2210,6 +2210,7 @@ dependencies = [
  "iced_wgpu",
  "iced_winit",
  "image 0.23.4",
+ "log",
  "nalgebra",
  "noise",
  "perlin",

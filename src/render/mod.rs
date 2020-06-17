@@ -92,7 +92,10 @@ impl Scene {
             &self.rs.swap_chain_descriptor,
             pipeline::world::SAMPLES
         );
-        self.no_srgb_pipeline.no_srgb_framebuffer = multisampled_framebuffer.no_srgb_texture_view;
+        self.no_srgb_pipeline.resize(
+            multisampled_framebuffer.no_srgb_texture_view,
+            &self.rs
+        );
         self.main_pipeline.framebuffer = multisampled_framebuffer.texture_view;
     }
 

@@ -1,9 +1,33 @@
 use crate::render::{RenderingState, compile_shaders};
 use iced_wgpu::wgpu;
 
+fn diffuse_bind_group(
+    layout: &wgpu::BindGroupLayout,
+    sampler: &wgpu::Sampler,
+    framebuffer: &wgpu::TextureView,
+    rs: &RenderingState,
+) -> wgpu::BindGroup {
+    rs.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout,
+        bindings: &[
+            wgpu::Binding {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(framebuffer),
+            },
+            wgpu::Binding {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            }
+        ],
+        label: Some("diffuse_bind_group"),
+    })
+}
+
 pub struct NoSrgb {
     render_pipeline: wgpu::RenderPipeline,
     pub no_srgb_framebuffer: wgpu::TextureView,
+    diffuse_sampler: wgpu::Sampler,
+    diffuse_bind_group_layout: wgpu::BindGroupLayout,
     diffuse_bind_group: wgpu::BindGroup,
 }
 impl NoSrgb {
@@ -14,7 +38,19 @@ impl NoSrgb {
             rs,
         );
 
-        let texture_bind_group_layout = rs.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let diffuse_sampler = rs.device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp: -100.0,
+            lod_max_clamp: 100.0,
+            compare: wgpu::CompareFunction::Always,
+        });
+
+        let diffuse_bind_group_layout = rs.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             bindings: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -33,38 +69,18 @@ impl NoSrgb {
                     },
                 },
             ],
-            label: Some("texture_bind_group_layout"),
+            label: Some("diffuse_bind_group_layout"),
         });
 
-        let diffuse_sampler = rs.device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            lod_min_clamp: -100.0,
-            lod_max_clamp: 100.0,
-            compare: wgpu::CompareFunction::Always,
-        });
-
-        let diffuse_bind_group = rs.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &texture_bind_group_layout,
-            bindings: &[
-                wgpu::Binding {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&framebuffer),
-                },
-                wgpu::Binding {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_sampler),
-                }
-            ],
-            label: Some("diffuse_bind_group"),
-        });
+        let diffuse_bind_group = diffuse_bind_group(
+            &diffuse_bind_group_layout,
+            &diffuse_sampler,
+            &framebuffer,
+            rs
+        );
 
         let render_pipeline_layout = rs.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            bind_group_layouts: &[&texture_bind_group_layout],
+            bind_group_layouts: &[&diffuse_bind_group_layout],
         });
 
         let render_pipeline = rs.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -105,9 +121,21 @@ impl NoSrgb {
 
         Self {
             render_pipeline,
+            no_srgb_framebuffer: framebuffer,
+            diffuse_sampler,
+            diffuse_bind_group_layout,
             diffuse_bind_group,
-            no_srgb_framebuffer: framebuffer
         }
+    }
+
+    pub fn resize(&mut self, framebuffer: wgpu::TextureView, rs: &RenderingState) {
+        self.diffuse_bind_group = diffuse_bind_group(
+            &self.diffuse_bind_group_layout,
+            &self.diffuse_sampler,
+            &framebuffer,
+            rs
+        );
+        self.no_srgb_framebuffer = framebuffer;
     }
 
     pub fn render(

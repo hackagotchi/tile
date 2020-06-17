@@ -5,7 +5,7 @@ use controls::Controls;
 use iced_wgpu::wgpu;
 use iced_winit::program;
 
-pub const SAMPLES: u32 = 2;
+pub const SAMPLES: u32 = 16;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
