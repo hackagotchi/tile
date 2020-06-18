@@ -5,9 +5,13 @@ use winit::{
 };
 
 mod camera;
-mod controls;
+mod tiling;
+
 mod render;
-use render::Scene;
+use render::Renderer;
+
+mod scene;
+use scene::Scene;
 
 fn main() {
     pretty_env_logger::init();
@@ -20,8 +24,7 @@ fn main() {
 
     let mut modifiers = ModifiersState::default();
 
-    // Since main can't be async, we're going to need to block
-    let mut scene = Scene::new(&window);
+    let (mut renderer, mut scene) = Renderer::new_with_scene(&window);
 
     event_loop.run(move |event, _, control_flow| {
         // You should change this if you want to render continuosly
@@ -45,27 +48,27 @@ fn main() {
                         } => *control_flow = ControlFlow::Exit,
                         _ => {}
                     },
-                    WindowEvent::Resized(new_size) => {
-                        scene.resize((new_size.width, new_size.height), &window);
+                    &WindowEvent::Resized(new_size) => {
+                        renderer.resize(new_size, &window);
                     }
                     _ => {}
                 }
 
-                // Map window event to iced event
-                if let Some(event) =
-                    iced_winit::conversion::window_event(&event, window.scale_factor(), modifiers)
-                {
-                    scene.controls.queue_event(event);
-                }
+                scene.event(
+                    event,
+                    window.scale_factor(),
+                    modifiers
+                );
             }
             Event::MainEventsCleared => {
-                // We update the scene
-                scene.update();
+                scene.update(&mut renderer);
 
                 // and request a redraw
                 window.request_redraw();
             }
-            Event::RedrawRequested(_) => scene.render(&window),
+            Event::RedrawRequested(_) => {
+                renderer.render(&window, scene.gui_primitive())
+            },
             _ => {}
         }
     });

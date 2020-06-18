@@ -1,6 +1,7 @@
 use iced_wgpu::{wgpu, Viewport};
 use iced_winit::winit;
 use winit::window::Window;
+use winit::dpi::PhysicalSize;
 
 pub struct RenderingState {
     pub surface: wgpu::Surface,
@@ -65,11 +66,13 @@ impl RenderingState {
         }
     }
 
-    pub fn resize(&mut self, (w, h): (u32, u32), window: &Window) {
-        self.viewport =
-            Viewport::with_physical_size(iced_winit::Size::new(w, h), window.scale_factor());
-        self.swap_chain_descriptor.width = w;
-        self.swap_chain_descriptor.height = h;
+    pub fn resize(&mut self, screen: PhysicalSize<u32>, window: &Window) {
+        self.viewport = Viewport::with_physical_size(
+            iced_winit::Size::new(screen.width, screen.height),
+            window.scale_factor()
+        );
+        self.swap_chain_descriptor.width = screen.width;
+        self.swap_chain_descriptor.height = screen.height;
         self.swap_chain = self
             .device
             .create_swap_chain(&self.surface, &self.swap_chain_descriptor);

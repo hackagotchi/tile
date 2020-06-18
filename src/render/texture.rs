@@ -31,6 +31,7 @@ impl Texture {
         main_label: &str,
     ) -> Result<(Self, wgpu::CommandBuffer), failure::Error> {
         let dimensions = imgs.first().expect("no images").0.dimensions();
+        let img_count = imgs.len() as u32;
 
         for (img, label) in &imgs {
             assert_eq!(
@@ -49,7 +50,7 @@ impl Texture {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some(main_label),
             size,
-            array_layer_count: 2,
+            array_layer_count: img_count,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -93,7 +94,7 @@ impl Texture {
             base_mip_level: 0,
             level_count: 1,
             base_array_layer: 0,
-            array_layer_count: 2,
+            array_layer_count: img_count,
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,

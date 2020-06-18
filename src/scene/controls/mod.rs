@@ -1,4 +1,3 @@
-use crate::camera::Camera;
 use iced_wgpu::Renderer;
 use iced_winit::{
     button, Align, Button, Column, Command, Container, Element, HorizontalAlignment, Length,
@@ -17,7 +16,6 @@ use tiling::TilingControls;
 #[derive(Debug, Clone)]
 pub enum Message {
     SetTab(Tab),
-    Resize(u32, u32),
     Camera(camera::Message),
     Tiling(tiling::Message),
 }
@@ -27,32 +25,43 @@ pub enum Tab {
     Home,
     Camera,
     Tiling,
+    Save,
 }
 impl Tab {
-    const ALL: &'static [Tab] = &[Tab::Home, Tab::Camera, Tab::Tiling];
+    const ALL: &'static [Tab] = &[Tab::Home, Tab::Camera, Tab::Tiling, Tab::Save];
+}
+impl Default for Tab {
+    fn default() -> Self {
+        Tab::Home
+    }
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Default, Debug)]
 pub struct Controls {
+    #[serde(skip)]
     pub tab: Tab,
+    #[serde(skip)]
     pub tab_buttons: HashMap<Tab, button::State>,
+    #[serde(skip)]
     pub home_button: button::State,
     pub camera_tab: CameraControls,
     pub tiling_tab: TilingControls,
 }
 
 impl Controls {
-    pub fn new(camera: Camera) -> Controls {
-        Self {
+    pub fn new() -> Controls {
+        dbg!(Self {
             tab: Tab::Home,
-            camera_tab: CameraControls::new(camera),
-            tiling_tab: Default::default(),
-            home_button: Default::default(),
             tab_buttons: Tab::ALL
                 .iter()
                 .filter(|&&t| t != Tab::Home)
                 .map(|t| (*t, Default::default()))
                 .collect(),
-        }
+            ..std::fs::read_to_string("save.json")
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default()
+        })
     }
 }
 
@@ -64,26 +73,20 @@ impl Program for Controls {
         use Message::*;
 
         match message {
-            SetTab(t) => self.tab = t,
-            Resize(w, h) => {
-                self.camera_tab.update(camera::Message::Resize(w, h));
-            }
-            Camera(msg) => {
-                self.camera_tab.update(msg);
-            }
-            Tiling(msg) => {
-                match msg {
-                    tiling::Message::SizeChanged(size) => {
-                        self.camera_tab.camera.target = nalgebra::Point3::new(
-                            size as f32 / 2.0 + 1.0,
-                            size as f32 / 2.0 + 1.0,
-                            0.0,
-                        );
-                    }
-                    _ => {},
-                };
-                self.tiling_tab.update(msg);
-            }
+            SetTab(t) => self.tab = match t {
+                Tab::Save => {
+                    std::fs::write(
+                        "save.json",
+                        serde_json::to_string_pretty(self).expect("self not savaeable")
+                    )
+                    .expect("couldn't save");
+
+                    Tab::Home
+                },
+                other => other,
+            },
+            Camera(msg) => { self.camera_tab.update(msg); },
+            Tiling(msg) => { self.tiling_tab.update(msg); },
         };
 
         Command::none()
@@ -120,7 +123,10 @@ impl Program for Controls {
                 r
             })
             .push(match tab {
-                Tab::Home => {
+                Tab::Camera => camera_tab.view().map(|msg| Message::Camera(msg)),
+                Tab::Tiling => tiling_tab.view().map(|msg| Message::Tiling(msg)),
+                // defaults to showing the home tab
+                _ => {
                     let mut c = Column::new().spacing(20);
                     for (tab, button) in tab_buttons.iter_mut() {
                         c = c.push(
@@ -139,8 +145,6 @@ impl Program for Controls {
 
                     c.into()
                 }
-                Tab::Camera => camera_tab.view().map(|msg| Message::Camera(msg)),
-                Tab::Tiling => tiling_tab.view().map(|msg| Message::Tiling(msg)),
             });
 
         Container::new(

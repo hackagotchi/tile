@@ -1,11 +1,9 @@
+use crate::render::Config;
 use crate::render::{RenderingState, compile_shaders, texture};
-use crate::{controls, camera::Camera};
+use crate::camera::Camera;
+use crate::tiling::Tile;
 
-use controls::Controls;
 use iced_wgpu::wgpu;
-use iced_winit::program;
-
-pub const SAMPLES: u32 = 16;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -92,31 +90,11 @@ impl Uniforms {
     }
 }
 
-struct Instance {
-    position: nalgebra::Vector3<f32>,
-    rotation: f32,
-}
-impl Default for Instance {
-    fn default() -> Self {
-        Self {
-            position: nalgebra::zero(),
-            rotation: Default::default(),
-        }
-    }
-}
-impl Instance {
-    fn to_raw(&self) -> InstanceRaw {
-        let model = nalgebra::Matrix4::new_translation(&self.position)
-            * nalgebra::Matrix4::new_rotation(nalgebra::Vector3::y() * self.rotation);
-
-        InstanceRaw { model }
-    }
-}
-
 #[repr(C)]
 #[derive(Copy, Clone)]
 struct InstanceRaw {
     model: nalgebra::Matrix4<f32>,
+    texture_indexes: nalgebra::Vector4<u32>,
 }
 unsafe impl bytemuck::Pod for InstanceRaw {}
 unsafe impl bytemuck::Zeroable for InstanceRaw {}
@@ -139,7 +117,12 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(rs: &RenderingState, controls: &Controls, framebuffer: wgpu::TextureView) -> Self {
+    pub fn new(
+        rs: &RenderingState,
+        framebuffer: wgpu::TextureView,
+        camera: &Camera,
+        config: &Config,
+    ) -> Self {
         // UNIFORMS
         let instance_buffer_size =
             (std::mem::size_of::<InstanceRaw>() * 250) as wgpu::BufferAddress;
@@ -150,7 +133,7 @@ impl World {
         });
 
         let mut uniforms = Uniforms::new();
-        uniforms.update_view_proj(&controls.camera_tab.camera);
+        uniforms.update_view_proj(&camera);
 
         let uniform_buffer = rs.device.create_buffer_with_data(
             bytemuck::cast_slice(&[uniforms]),
@@ -203,7 +186,7 @@ impl World {
         let depth_texture = texture::Texture::create_depth_texture(
             &rs.device,
             &rs.swap_chain_descriptor,
-            SAMPLES,
+            config.msaa,
             "depth_texture",
         );
 
@@ -212,6 +195,8 @@ impl World {
             vec![
                 (include_bytes!("../../../img/ice_hat.png"), "ice_hat.png"),
                 (include_bytes!("../../../img/ice_butt.png"), "ice_butt.png"),
+                (include_bytes!("../../../img/snow_hat.png"), "snow_hat.png"),
+                (include_bytes!("../../../img/snow_butt.png"), "snow_butt.png"),
             ],
             "tile textures"
         ).unwrap();
@@ -313,7 +298,7 @@ impl World {
                     index_format: wgpu::IndexFormat::Uint16,
                     vertex_buffers: &[Vertex::desc()],
                 },
-                sample_count: SAMPLES,
+                sample_count: config.msaa,
                 sample_mask: !0,
                 alpha_to_coverage_enabled: false,
             });
@@ -338,25 +323,23 @@ impl World {
         &mut self,
         sc_desc: &wgpu::SwapChainDescriptor,
         device: &wgpu::Device,
+        config: &Config,
     ) {
         self.depth_texture = texture::Texture::create_depth_texture(
             device,
             sc_desc,
-            SAMPLES,
+            config.msaa,
             "depth_texture",
         );
     }
 
-    pub fn update(
+    pub fn set_camera(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         rs: &RenderingState,
-        controls_window: &mut program::State<Controls>
+        camera: &Camera,
     ) {
-        let controls = controls_window.program();
-
-        self.uniforms
-            .update_view_proj(&controls.camera_tab.camera);
+        self.uniforms.update_view_proj(&camera);
         let staging_buffer = rs.device.create_buffer_with_data(
             bytemuck::cast_slice(&[self.uniforms]),
             wgpu::BufferUsage::COPY_SRC,
@@ -369,59 +352,60 @@ impl World {
             0,
             std::mem::size_of::<Uniforms>() as wgpu::BufferAddress,
         );
+    }
 
-        if controls.tiling_tab.dirty {
-            use noise::{Seedable, NoiseFn};
+    pub fn set_tiles(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        rs: &RenderingState,
+        tiles: Vec<Tile>
+    ) {
+        let instance_data = tiles
+            .into_iter()
+            .map(|t| {
+                use nalgebra::Vector3 as Vec3;
+                let Tile { elevation, position: p, hat, butt, butt_size } = t;
+                let w: f32 = 3.0_f32.sqrt();
+                let h: f32 = 2.0;
 
-            let perlin = noise::Perlin::new().set_seed(controls.tiling_tab.seed);
-            let g = controls.tiling_tab.size as f64;
-            let e = controls.tiling_tab.elevation as f32;
+                let position = Vec3::new(
+                    (p.x * 2 + (p.y & 1)) as f32 / 2.0 * w,
+                    ((3.0 / 4.0) * p.y as f32) * h,
+                    elevation
+                );
+                let model = nalgebra::Matrix4::new_nonuniform_scaling(&Vec3::new(1.0, 1.0, butt_size))
+                    * nalgebra::Matrix4::new_translation(&position);
+                    //* nalgebra::Matrix4::new_rotation(nalgebra::Vector3::y() * rotation);
 
-            let instances: Vec<Instance> = (0..controls.tiling_tab.size)
-                .flat_map(|x| {
-                    (0..controls.tiling_tab.size).map(move |y| {
-                        let w: f32 = 3.0_f32.sqrt();
-                        let h: f32 = 2.0;
+                InstanceRaw {
+                    model,
+                    texture_indexes: nalgebra::Vector4::new(hat, butt, 0, 0),
+                }
+            })
+            .collect::<Vec<_>>();
+        self.instances_count = instance_data.len();
 
-                        Instance {
-                            position: nalgebra::Vector3::new(
-                                (x * 2 + (y & 1)) as f32 / 2.0 * w,
-                                ((3.0 / 4.0) * y as f32) * h,
-                                perlin.get([x as f64 / g, y as f64 / g]) as f32 * e,
-                            ),
-                            ..Default::default()
-                        }
-                    })
-                })
-                .collect();
-            self.instances_count = instances.len();
+        let staging_buffer_size =
+            instance_data.len() * std::mem::size_of::<InstanceRaw>();
+        let staging_buffer = rs.device.create_buffer_with_data(
+            bytemuck::cast_slice(&instance_data),
+            wgpu::BufferUsage::COPY_SRC,
+        );
 
-            let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<InstanceRaw>>();
-            let staging_buffer_size =
-                instance_data.len() * std::mem::size_of::<nalgebra::Matrix4<f32>>();
-            let staging_buffer = rs.device.create_buffer_with_data(
-                bytemuck::cast_slice(&instance_data),
-                wgpu::BufferUsage::COPY_SRC,
-            );
-
-            encoder.copy_buffer_to_buffer(
-                &staging_buffer,
-                0,
-                &self.instance_buffer,
-                0,
-                staging_buffer_size as u64,
-            );
-
-            controls_window.queue_message(
-                controls::Message::Tiling(controls::tiling::Message::Retiled)
-            );
-        }
+        encoder.copy_buffer_to_buffer(
+            &staging_buffer,
+            0,
+            &self.instance_buffer,
+            0,
+            staging_buffer_size as u64,
+        );
     }
 
     pub fn render(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         frame_view: &wgpu::TextureView,
+        config: &Config,
     ) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             color_attachments: &[{
@@ -440,7 +424,7 @@ impl World {
                     resolve_target: None,
                 };
 
-                match SAMPLES {
+                match config.msaa {
                     1 => base,
                     _ => ColorPass {
                         attachment: &self.framebuffer,

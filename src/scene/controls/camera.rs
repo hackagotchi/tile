@@ -1,4 +1,3 @@
-use crate::camera::Camera;
 use iced_wgpu::Renderer;
 use iced_winit::{slider, Align, Column, Command, Element, Program, Slider, Text};
 
@@ -8,10 +7,9 @@ pub enum Message {
     HeightChanged(f32),
     AngleChanged(f32),
     DistanceChanged(f32),
-    Resize(u32, u32),
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Sliders {
     fov: slider::State,
     height: slider::State,
@@ -19,19 +17,23 @@ struct Sliders {
     distance: slider::State,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct CameraControls {
-    pub camera: Camera,
-    angle: f32,
-    distance: f32,
+    pub fov: f32,
+    pub height: f32,
+    pub angle: f32,
+    pub distance: f32,
+    #[serde(skip)]
     sliders: Sliders,
 }
 
-impl CameraControls {
-    pub fn new(camera: Camera) -> Self {
+impl Default for CameraControls {
+    fn default() -> Self {
         Self {
-            camera,
-            angle: Camera::DEFAULT_ANGLE,
-            distance: Camera::DEFAULT_DISTANCE,
+            fov: std::f32::consts::PI / 2.0,
+            height: 3.0,
+            angle: std::f32::consts::PI / 2.0,
+            distance: 6.0,
             sliders: Default::default(),
         }
     }
@@ -45,17 +47,10 @@ impl Program for CameraControls {
         use Message::*;
 
         match message {
-            FovChanged(fov) => self.camera.fovy = fov,
-            HeightChanged(height) => self.camera.eye.z = height,
-            AngleChanged(angle) => {
-                self.angle = angle;
-                self.camera.set_angle(angle, self.distance);
-            }
-            DistanceChanged(distance) => {
-                self.distance = distance;
-                self.camera.set_angle(self.angle, distance);
-            }
-            Resize(w, h) => self.camera.resize(w as f32, h as f32),
+            FovChanged(fov) => self.fov = fov,
+            HeightChanged(height) => self.height = height,
+            AngleChanged(angle) => self.angle = angle,
+            DistanceChanged(distance) => self.distance = distance,
         }
 
         Command::none()
@@ -63,14 +58,14 @@ impl Program for CameraControls {
 
     fn view(&mut self) -> Element<Message, Renderer> {
         use std::f32::consts::PI;
-
-        let Self {
-            camera,
-            distance,
-            angle,
-            sliders,
-        } = self;
         const TAU: f32 = PI * 2.0;
+
+        let Sliders {
+            fov,
+            distance,
+            height,
+            angle,
+        } = &mut self.sliders;
 
         let labeled_slider = |label, slider| {
             Column::new()
@@ -85,25 +80,25 @@ impl Program for CameraControls {
             .padding(10)
             .push(labeled_slider(
                 "FOV",
-                Slider::new(&mut sliders.fov, 0.0..=TAU, camera.fovy, move |f| {
+                Slider::new(fov, 0.0..=PI, self.fov, move |f| {
                     Message::FovChanged(f)
                 }),
             ))
             .push(labeled_slider(
                 "Height",
-                Slider::new(&mut sliders.height, 0.0..=20.0, camera.eye.z, move |h| {
+                Slider::new(height, 0.0..=50.0, self.height, move |h| {
                     Message::HeightChanged(h)
                 }),
             ))
             .push(labeled_slider(
                 "Angle",
-                Slider::new(&mut sliders.angle, 0.0..=TAU, *angle, move |a| {
+                Slider::new(angle, 0.0..=TAU, self.angle, move |a| {
                     Message::AngleChanged(a)
                 }),
             ))
             .push(labeled_slider(
                 "Distance",
-                Slider::new(&mut sliders.distance, 0.0..=50.0, *distance, move |d| {
+                Slider::new(distance, 0.0..=50.0, self.distance, move |d| {
                     Message::DistanceChanged(d)
                 }),
             ))

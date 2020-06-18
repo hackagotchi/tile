@@ -1,7 +1,10 @@
-use crate::{controls::{self, Controls}, camera::Camera};
-use iced_wgpu::{wgpu, Renderer};
-use iced_winit::{winit, program, Debug};
+use crate::camera::Camera;
+use crate::tiling::Tile;
+use iced_wgpu::{wgpu, Renderer as IcedRenderer, Primitive as GuiPrimitive};
+use iced_winit::{winit, Debug as IcedDebug, mouse, Size};
+use winit::dpi::PhysicalSize;
 use winit::window::Window;
+use crate::Scene;
 
 mod pipeline;
 mod texture;
@@ -12,85 +15,86 @@ pub use rendering_state::RenderingState;
 use multisampled_framebuffer::MultisampledFramebuffer;
 use pipeline::{WorldPipeline, NoSrgbPipeline};
 
-pub struct Scene {
+pub struct Config {
+    pub msaa: u32,
+    pub camera: Camera,
+}
+
+pub struct Renderer {
+    config: Config,
     main_pipeline: WorldPipeline,
     no_srgb_pipeline: NoSrgbPipeline,
     rs: RenderingState,
-    renderer: Renderer,
-    debug: Debug,
-    pub controls: program::State<Controls>,
+    pub iced_renderer: IcedRenderer,
+    pub iced_debug: IcedDebug,
 }
-impl Scene {
-    pub fn new(window: &Window) -> Self {
+impl Renderer {
+    pub fn new_with_scene(window: &Window) -> (Self, Scene) {
         use iced_wgpu::{Backend, Settings};
 
         let mut rs = RenderingState::new(&window);
+        let screen = rs.viewport.logical_size();
 
-        // Initialize iced
-        let mut debug = Debug::new();
-        let mut renderer = Renderer::new(Backend::new(&mut rs.device, Settings::default()));
+        let mut iced_debug = IcedDebug::new();
+        let mut iced_renderer = IcedRenderer::new(Backend::new(&mut rs.device, Settings::default()));
 
-        let camera = Camera::new(
-            rs.swap_chain_descriptor.width as f32,
-            rs.swap_chain_descriptor.height as f32,
-        );
-        let mut controls = program::State::new(
-            Controls::new(camera),
-            rs.viewport.logical_size(),
-            &mut renderer,
-            &mut debug,
-        );
-        controls.queue_message(
-            controls::Message::Tiling(
-                controls::tiling::Message::SizeChanged(
-                    controls.program().tiling_tab.size
-                )
-            )
+        let (scene, config) = Scene::new(
+            screen,
+            &mut iced_renderer,
+            &mut iced_debug,
         );
 
         let multisampled_framebuffer = MultisampledFramebuffer::new(
             &rs.device,
             &rs.swap_chain_descriptor,
-            pipeline::world::SAMPLES
+            config.msaa,
         );
 
         let main_pipeline = WorldPipeline::new(
             &rs,
-            controls.program(),
-            multisampled_framebuffer.texture_view
+            multisampled_framebuffer.texture_view,
+            &config.camera,
+            &config
         );
         let no_srgb_pipeline = NoSrgbPipeline::new(
             &rs,
             multisampled_framebuffer.no_srgb_texture_view
         );
 
-        Self {
-            no_srgb_pipeline,
-            main_pipeline,
-            controls,
-            rs,
-            renderer,
-            debug
-        }
+        (
+            Self {
+                no_srgb_pipeline,
+                main_pipeline,
+                rs,
+                config,
+                iced_renderer,
+                iced_debug
+            },
+            scene
+        )
+    }
+
+    pub fn screen_size(&self) -> Size {
+        self.rs.viewport.logical_size()
     }
 
     pub fn resize(
         &mut self,
-        (w, h): (u32, u32),
+        screen: PhysicalSize<u32>,
         window: &Window
     ) {
-        self.rs.resize((w, h), &window);
+        self.rs.resize(screen, &window);
 
-        self.controls.queue_message(
-            controls::Message::Resize(w, h)
+        self.main_pipeline.resize(
+            &self.rs.swap_chain_descriptor,
+            &self.rs.device,
+            &self.config
         );
-
-        self.main_pipeline.resize(&self.rs.swap_chain_descriptor, &self.rs.device);
 
         let multisampled_framebuffer = MultisampledFramebuffer::new(
             &self.rs.device,
             &self.rs.swap_chain_descriptor,
-            pipeline::world::SAMPLES
+            self.config.msaa
         );
         self.no_srgb_pipeline.resize(
             multisampled_framebuffer.no_srgb_texture_view,
@@ -99,25 +103,29 @@ impl Scene {
         self.main_pipeline.framebuffer = multisampled_framebuffer.texture_view;
     }
 
-    pub fn update(&mut self) {
+    pub fn set_tiles(&mut self, tiles: Vec<Tile>) {
         let mut encoder = self
             .rs
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        let _ = self.controls.update(
-            None,
-            self.rs.viewport.logical_size(),
-            &mut self.renderer,
-            &mut self.debug,
-        );
-
-        self.main_pipeline.update(&mut encoder, &self.rs, &mut self.controls);
+        self.main_pipeline.set_tiles(&mut encoder, &self.rs, tiles);
 
         self.rs.queue.submit(&[encoder.finish()]);
     }
 
-    pub fn render(&mut self, window: &Window) {
+    pub fn set_camera(&mut self, camera: &Camera) {
+        let mut encoder = self
+            .rs
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        self.main_pipeline.set_camera(&mut encoder, &self.rs, camera);
+
+        self.rs.queue.submit(&[encoder.finish()]);
+    }
+
+    pub fn render(&mut self, window: &Window, gui: &(GuiPrimitive, mouse::Interaction)) {
         let frame = self
             .rs
             .swap_chain
@@ -129,26 +137,29 @@ impl Scene {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        self.main_pipeline.render(&mut encoder, &self.no_srgb_pipeline.no_srgb_framebuffer);
+        self.main_pipeline.render(
+            &mut encoder,
+            &self.no_srgb_pipeline.no_srgb_framebuffer,
+            &self.config
+        );
         self.no_srgb_pipeline.render(&mut encoder, &frame.view);
 
         // And update the mouse cursor
         window.set_cursor_icon(iced_winit::conversion::mouse_interaction(
             self
-                .renderer
+                .iced_renderer
                 .backend_mut()
                 .draw(
                     &mut self.rs.device,
                     &mut encoder,
                     &frame.view,
                     &self.rs.viewport,
-                    self.controls.primitive(),
-                    &self.debug.overlay(),
+                    gui,
+                    &self.iced_debug.overlay(),
                 )
         ));
 
         self.rs.queue.submit(&[encoder.finish()]);
-
     }
 }
 

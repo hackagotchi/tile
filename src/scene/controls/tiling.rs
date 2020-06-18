@@ -4,13 +4,20 @@ use iced_winit::{slider, Align, Column, Command, Element, Program, Slider, Text}
 #[derive(Debug, Clone)]
 pub enum Message {
     ElevationChanged(f32),
-    SizeChanged(u8),
+    SizeChanged(u32),
     SeedChanged(u32),
     Retiled,
 }
 
+fn dirty_default() -> bool {
+    true
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct TilingControls {
+    #[serde(skip, default = "dirty_default")]
     pub dirty: bool,
+    #[serde(skip)]
     sliders: Sliders,
     pub data: Data,
 }
@@ -31,17 +38,17 @@ impl std::ops::Deref for TilingControls {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Sliders {
     elevation: slider::State,
     size: slider::State,
     seed: slider::State,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct Data {
     pub elevation: f32,
-    pub size: u8,
+    pub size: u32,
     pub seed: u32,
 }
 impl Default for Data {
@@ -106,7 +113,7 @@ impl Program for TilingControls {
             .push(labeled_slider(
                 "Size",
                 Slider::new(size, 1.0..=15.0, data.size as f32, move |size| {
-                    Message::SizeChanged(size as u8)
+                    Message::SizeChanged(size as u32)
                 }),
             ))
             .push(labeled_slider(

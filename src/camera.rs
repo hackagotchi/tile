@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Camera {
     pub eye: nalgebra::Point3<f32>,
     pub target: nalgebra::Point3<f32>,
@@ -9,20 +9,16 @@ pub struct Camera {
     zfar: f32,
 }
 impl Camera {
-    pub const DEFAULT_ANGLE: f32 = std::f32::consts::PI / 2.0;
-    pub const DEFAULT_DISTANCE: f32 = 6.0;
-
     pub fn new(w: f32, h: f32) -> Self {
         let mut c = Camera {
-            eye: nalgebra::Point3::new(0.0, 0.0, 3.0),
+            eye: nalgebra::Point3::new(0.0, 0.0, 0.0),
             target: nalgebra::Point3::new(0.0, 0.0, 0.0),
             up: nalgebra::Vector3::z(),
             aspect: 0.0,
-            fovy: std::f32::consts::PI / 2.0,
+            fovy: 0.0,
             znear: 0.1,
             zfar: 100.0,
         };
-        c.set_angle(Self::DEFAULT_ANGLE, Self::DEFAULT_DISTANCE);
         c.resize(w, h);
         c
     }

@@ -10,8 +10,6 @@ impl MultisampledFramebuffer {
         sc_desc: &wgpu::SwapChainDescriptor,
         sample_count: u32,
     ) -> Self {
-        log::info!("making multisampled framebuffers");
-
         let multisampled_texture_extent = wgpu::Extent3d {
             width: sc_desc.width,
             height: sc_desc.height,

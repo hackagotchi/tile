@@ -12,13 +12,24 @@ uniform Uniforms {
     mat4 u_view_proj;
 };
 
+struct Instance {
+    mat4 s_model;
+    uvec4 tex_index;
+};
+
 layout(set=1, binding=1)
 buffer Instances {
-    mat4 s_models[];
+    Instance instances[];
 };
 
 void main() {
-    gl_Position = u_view_proj * s_models[gl_InstanceIndex] * vec4(a_position, 1.0);
+    Instance i = instances[gl_InstanceIndex];
+
+    gl_Position = u_view_proj * i.s_model * vec4(a_position, 1.0);
+
     v_tex_coords = a_tex_coords;
-    v_which_tex = a_which_tex;
+    if (a_which_tex == 0)
+        v_which_tex = i.tex_index.x;
+    else
+        v_which_tex = i.tex_index.y;
 }
