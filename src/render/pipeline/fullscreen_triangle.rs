@@ -23,14 +23,14 @@ fn diffuse_bind_group(
     })
 }
 
-pub struct NoSrgb {
+pub struct FullscreenTriangle {
     render_pipeline: wgpu::RenderPipeline,
     pub no_srgb_framebuffer: wgpu::TextureView,
     diffuse_sampler: wgpu::Sampler,
     diffuse_bind_group_layout: wgpu::BindGroupLayout,
     diffuse_bind_group: wgpu::BindGroup,
 }
-impl NoSrgb {
+impl FullscreenTriangle {
     pub fn new(rs: &RenderingState, framebuffer: wgpu::TextureView) -> Self {
         let (vs_module, fs_module) = compile_shaders(
             (include_str!("../../../shader/no_srgb/shader.vert"), "no_srgb/shader.vert"),

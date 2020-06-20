@@ -33,15 +33,19 @@ impl Camera {
         self.eye.y = sin * distance;
     }
 
-    pub fn build_view_projection_matrix(&self) -> nalgebra::Matrix4<f32> {
-        let view = nalgebra::Matrix4::look_at_rh(
+    pub fn view(&self) -> nalgebra::Matrix4<f32> {
+        nalgebra::Matrix4::look_at_rh(
             &(self.eye.coords + self.target.coords).into(),
             &self.target,
             &self.up
-        );
-        let proj =
-            nalgebra::Matrix4::new_perspective(self.aspect, self.fovy, self.znear, self.zfar);
+        )
+    }
 
-        return proj * view;
+    pub fn projection(&self) -> nalgebra::Matrix4<f32> {
+        nalgebra::Matrix4::new_perspective(self.aspect, self.fovy, self.znear, self.zfar)
+    }
+
+    pub fn build_view_projection_matrix(&self) -> nalgebra::Matrix4<f32> {
+        return self.projection() * self.view();
     }
 }

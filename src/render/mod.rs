@@ -1,5 +1,4 @@
 use crate::camera::Camera;
-use crate::tiling::Tile;
 use iced_wgpu::{wgpu, Renderer as IcedRenderer, Primitive as GuiPrimitive};
 use iced_winit::{winit, Debug as IcedDebug, mouse, Size};
 use winit::dpi::PhysicalSize;
@@ -13,7 +12,7 @@ mod multisampled_framebuffer;
 
 pub use rendering_state::RenderingState;
 use multisampled_framebuffer::MultisampledFramebuffer;
-use pipeline::{WorldPipeline, NoSrgbPipeline};
+use pipeline::{HexPipeline, FullscreenTrianglePipeline, QuadPipeline};
 
 pub struct Config {
     pub msaa: u32,
@@ -22,8 +21,11 @@ pub struct Config {
 
 pub struct Renderer {
     config: Config,
-    main_pipeline: WorldPipeline,
-    no_srgb_pipeline: NoSrgbPipeline,
+    quad_pipeline: QuadPipeline,
+    hex_pipeline: HexPipeline,
+    fullscreen_triangle_pipeline: FullscreenTrianglePipeline,
+    framebuffer: wgpu::TextureView,
+    depth_texture: texture::Texture,
     rs: RenderingState,
     pub iced_renderer: IcedRenderer,
     pub iced_debug: IcedDebug,
@@ -50,21 +52,27 @@ impl Renderer {
             config.msaa,
         );
 
-        let main_pipeline = WorldPipeline::new(
-            &rs,
-            multisampled_framebuffer.texture_view,
-            &config.camera,
-            &config
+        let depth_texture = texture::Texture::create_depth_texture(
+            &rs.device,
+            &rs.swap_chain_descriptor,
+            config.msaa,
+            "depth_texture",
         );
-        let no_srgb_pipeline = NoSrgbPipeline::new(
+
+        let hex_pipeline = HexPipeline::new(&rs, &config.camera, &config);
+        let quad_pipeline = QuadPipeline::new(&rs, &config.camera, &config);
+        let fullscreen_triangle_pipeline = FullscreenTrianglePipeline::new(
             &rs,
             multisampled_framebuffer.no_srgb_texture_view
         );
 
         (
             Self {
-                no_srgb_pipeline,
-                main_pipeline,
+                framebuffer: multisampled_framebuffer.texture_view,
+                fullscreen_triangle_pipeline,
+                hex_pipeline,
+                quad_pipeline,
+                depth_texture,
                 rs,
                 config,
                 iced_renderer,
@@ -85,10 +93,11 @@ impl Renderer {
     ) {
         self.rs.resize(screen, &window);
 
-        self.main_pipeline.resize(
-            &self.rs.swap_chain_descriptor,
+        self.depth_texture = texture::Texture::create_depth_texture(
             &self.rs.device,
-            &self.config
+            &self.rs.swap_chain_descriptor,
+            self.config.msaa,
+            "depth_texture",
         );
 
         let multisampled_framebuffer = MultisampledFramebuffer::new(
@@ -96,20 +105,31 @@ impl Renderer {
             &self.rs.swap_chain_descriptor,
             self.config.msaa
         );
-        self.no_srgb_pipeline.resize(
+        self.fullscreen_triangle_pipeline.resize(
             multisampled_framebuffer.no_srgb_texture_view,
             &self.rs
         );
-        self.main_pipeline.framebuffer = multisampled_framebuffer.texture_view;
+        self.framebuffer = multisampled_framebuffer.texture_view;
     }
 
-    pub fn set_tiles(&mut self, tiles: Vec<Tile>) {
+    pub fn set_tiles(&mut self, tiles: Vec<crate::tiling::Tile>) {
         let mut encoder = self
             .rs
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        self.main_pipeline.set_tiles(&mut encoder, &self.rs, tiles);
+        self.hex_pipeline.set_tiles(&mut encoder, &self.rs, tiles);
+
+        self.rs.queue.submit(&[encoder.finish()]);
+    }
+
+    pub fn set_sprites(&mut self, sprites: Vec<crate::sprite::Sprite>) {
+        let mut encoder = self
+            .rs
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+
+        self.quad_pipeline.set_sprites(&mut encoder, &self.rs, sprites);
 
         self.rs.queue.submit(&[encoder.finish()]);
     }
@@ -120,7 +140,8 @@ impl Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        self.main_pipeline.set_camera(&mut encoder, &self.rs, camera);
+        self.hex_pipeline.set_camera(&mut encoder, &self.rs, camera);
+        self.quad_pipeline.set_camera(&mut encoder, &self.rs, camera);
 
         self.rs.queue.submit(&[encoder.finish()]);
     }
@@ -137,12 +158,49 @@ impl Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        self.main_pipeline.render(
-            &mut encoder,
-            &self.no_srgb_pipeline.no_srgb_framebuffer,
-            &self.config
-        );
-        self.no_srgb_pipeline.render(&mut encoder, &frame.view);
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                color_attachments: &[{
+                    use wgpu::RenderPassColorAttachmentDescriptor as ColorPass;
+
+                    let base: ColorPass = ColorPass {
+                        load_op: wgpu::LoadOp::Clear,
+                        store_op: wgpu::StoreOp::Store,
+                        clear_color: wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        },
+                        attachment: &self.fullscreen_triangle_pipeline.no_srgb_framebuffer,
+                        resolve_target: None,
+                    };
+
+                    match self.config.msaa {
+                        1 => base,
+                        _ => ColorPass {
+                            attachment: &self.framebuffer,
+                            resolve_target: Some(&self.fullscreen_triangle_pipeline.no_srgb_framebuffer),
+                            ..base
+                        },
+                    }
+                }],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
+                    attachment: &self.depth_texture.view,
+                    depth_load_op: wgpu::LoadOp::Clear,
+                    depth_store_op: wgpu::StoreOp::Store,
+                    clear_depth: 1.0,
+                    stencil_load_op: wgpu::LoadOp::Clear,
+                    stencil_store_op: wgpu::StoreOp::Store,
+                    clear_stencil: 0,
+                }),
+            });
+
+            self.hex_pipeline.render(&mut render_pass);
+            self.quad_pipeline.render(&mut render_pass);
+        }
+
+        self.fullscreen_triangle_pipeline.render(&mut encoder, &frame.view);
 
         // And update the mouse cursor
         window.set_cursor_icon(iced_winit::conversion::mouse_interaction(

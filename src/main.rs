@@ -6,6 +6,7 @@ use winit::{
 
 mod camera;
 mod tiling;
+mod sprite;
 
 mod render;
 use render::Renderer;

@@ -99,7 +99,7 @@ struct InstanceRaw {
 unsafe impl bytemuck::Pod for InstanceRaw {}
 unsafe impl bytemuck::Zeroable for InstanceRaw {}
 
-pub struct World {
+pub struct Hex {
     /// Stores vertex data
     vertex_buffer: wgpu::Buffer,
     /// Stores index data
@@ -108,18 +108,15 @@ pub struct World {
     uniforms: Uniforms,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
-    pub framebuffer: wgpu::TextureView,
-    depth_texture: texture::Texture,
     diffuse_texture: texture::Texture,
     diffuse_bind_group: wgpu::BindGroup,
     instance_buffer: wgpu::Buffer,
     instances_count: usize,
 }
 
-impl World {
+impl Hex {
     pub fn new(
         rs: &RenderingState,
-        framebuffer: wgpu::TextureView,
         camera: &Camera,
         config: &Config,
     ) -> Self {
@@ -183,20 +180,13 @@ impl World {
         });
 
         // IMAGE
-        let depth_texture = texture::Texture::create_depth_texture(
-            &rs.device,
-            &rs.swap_chain_descriptor,
-            config.msaa,
-            "depth_texture",
-        );
-
         let (diffuse_texture, cmd_buffer) = texture::Texture::from_bytes(
             &rs.device,
             vec![
-                (include_bytes!("../../../img/ice_hat.png"), "ice_hat.png"),
-                (include_bytes!("../../../img/ice_butt.png"), "ice_butt.png"),
-                (include_bytes!("../../../img/snow_hat.png"), "snow_hat.png"),
-                (include_bytes!("../../../img/snow_butt.png"), "snow_butt.png"),
+                (include_bytes!("../../../img/hex/ice_hat.png"), "ice_hat.png"),
+                (include_bytes!("../../../img/hex/ice_butt.png"), "ice_butt.png"),
+                (include_bytes!("../../../img/hex/snow_hat.png"), "snow_hat.png"),
+                (include_bytes!("../../../img/hex/snow_butt.png"), "snow_butt.png"),
             ],
             "tile textures"
         ).unwrap();
@@ -249,8 +239,8 @@ impl World {
 
         // SHADERS
         let (vs_module, fs_module) = compile_shaders(
-            (include_str!("../../../shader/main/shader.vert"), "main/shader.vert"),
-            (include_str!("../../../shader/main/shader.frag"), "main/shader.frag"),
+            (include_str!("../../../shader/hex/shader.vert"), "hex/shader.vert"),
+            (include_str!("../../../shader/hex/shader.frag"), "hex/shader.frag"),
             rs,
         );
 
@@ -311,26 +301,10 @@ impl World {
             uniforms,
             uniform_buffer,
             uniform_bind_group,
-            framebuffer,
-            depth_texture,
             diffuse_texture,
             diffuse_bind_group,
             instance_buffer,
         }
-    }
-
-    pub fn resize(
-        &mut self,
-        sc_desc: &wgpu::SwapChainDescriptor,
-        device: &wgpu::Device,
-        config: &Config,
-    ) {
-        self.depth_texture = texture::Texture::create_depth_texture(
-            device,
-            sc_desc,
-            config.msaa,
-            "depth_texture",
-        );
     }
 
     pub fn set_camera(
@@ -401,49 +375,10 @@ impl World {
         );
     }
 
-    pub fn render(
-        &mut self,
-        encoder: &mut wgpu::CommandEncoder,
-        frame_view: &wgpu::TextureView,
-        config: &Config,
+    pub fn render<'a>(
+        &'a mut self,
+        render_pass: &mut wgpu::RenderPass<'a>,
     ) {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            color_attachments: &[{
-                use wgpu::RenderPassColorAttachmentDescriptor as ColorPass;
-
-                let base: ColorPass = ColorPass {
-                    load_op: wgpu::LoadOp::Clear,
-                    store_op: wgpu::StoreOp::Store,
-                    clear_color: wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
-                    },
-                    attachment: frame_view,
-                    resolve_target: None,
-                };
-
-                match config.msaa {
-                    1 => base,
-                    _ => ColorPass {
-                        attachment: &self.framebuffer,
-                        resolve_target: Some(frame_view),
-                        ..base
-                    },
-                }
-            }],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                attachment: &self.depth_texture.view,
-                depth_load_op: wgpu::LoadOp::Clear,
-                depth_store_op: wgpu::StoreOp::Store,
-                clear_depth: 1.0,
-                stencil_load_op: wgpu::LoadOp::Clear,
-                stencil_store_op: wgpu::StoreOp::Store,
-                clear_stencil: 0,
-            }),
-        });
-
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
         render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);

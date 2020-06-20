@@ -1,17 +1,19 @@
 use iced_wgpu::{Renderer as IcedRenderer, Primitive as GuiPrimitive};
 use iced_winit::{program, winit, Debug as IcedDebug, mouse, Size};
 use winit::event::{WindowEvent, ModifiersState};
-use crate::{camera, tiling, render};
+use crate::{camera, sprite, tiling, render};
 use crate::Renderer;
 use camera::Camera;
 use tiling::Tile;
+use sprite::Sprite;
 
 mod controls;
 use controls::Controls;
 
 pub struct Scene {
     gui: program::State<Controls>,
-    camera: Camera
+    camera: Camera,
+    first_frame: bool,
 }
 impl Scene {
     pub fn new(
@@ -30,7 +32,8 @@ impl Scene {
         (
             Self {
                 gui,
-                camera: camera.clone()
+                camera: camera.clone(),
+                first_frame: true,
             },
             render::Config {
                 camera,
@@ -74,6 +77,17 @@ impl Scene {
             &mut renderer.iced_renderer,
             &mut renderer.iced_debug,
         );
+
+        if self.first_frame {
+
+            renderer.set_sprites(vec![Sprite {
+                image: 0,
+                position: nalgebra::Vector2::new(8.0, 7.5),
+                scale: nalgebra::Vector2::repeat(1.0),
+            }]);
+
+            self.first_frame = false;
+        }
 
         let Controls { tiling_tab, camera_tab, .. } = self.gui.program();
 
