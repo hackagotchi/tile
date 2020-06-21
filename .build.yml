@@ -1,0 +1,22 @@
+image: archlinux
+packages:
+- rustup
+repositories: {}
+shell: false
+sources:
+  - https://git.sr.ht/~muirrum/hackagotchi-graphical
+tasks:
+- setup: |
+    rustup toolchain install stable
+    cd hackagotchi-graphical/
+    rustup run stable cargo fetch
+- format: |
+    rustup default stable
+    cd hackagotchi-graphical/
+    cargo fmt -- --check
+- stable: |
+    rustup default stable
+    cd hackagotchi-graphical/
+    cargo build
+    cargo test
+
