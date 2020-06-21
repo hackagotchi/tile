@@ -1,31 +1,24 @@
-use iced_winit::winit;
+use hexa::iced_winit::winit;
 use winit::{
     event::{Event, ModifiersState, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
 };
 
-mod camera;
-mod tiling;
-mod sprite;
-
-mod render;
-use render::Renderer;
-
-mod scene;
-use scene::Scene;
-
 fn main() {
+    use hexa::Scene;
+
     pretty_env_logger::init();
 
     let event_loop = EventLoop::new();
     let window = winit::window::WindowBuilder::new()
-        .with_inner_size(winit::dpi::PhysicalSize::new(1024.0, 1024.0))
+        .with_inner_size(winit::dpi::PhysicalSize::new(1920.0, 1080.0))
         .build(&event_loop)
         .unwrap();
 
     let mut modifiers = ModifiersState::default();
 
-    let (mut renderer, mut scene) = Renderer::new_with_scene(&window);
+    let mut renderer = render::Renderer::new(&window);
+    let mut scene = hackstead_scene::HacksteadScene::new(&mut renderer);
 
     event_loop.run(move |event, _, control_flow| {
         // You should change this if you want to render continuosly

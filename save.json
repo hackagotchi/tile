@@ -1,15 +1,15 @@
 {
   "camera_tab": {
-    "fov": 0.5005713,
-    "height": 27.464441,
-    "angle": 0.4818867,
+    "fov": 0.3355883,
+    "height": 31.379873,
+    "angle": 0.0,
     "distance": 50.0
   },
   "tiling_tab": {
     "data": {
-      "elevation": 2.318203,
+      "elevation": 3.0,
       "size": 15,
-      "seed": 3569024512
+      "seed": 42
     }
   }
 }
