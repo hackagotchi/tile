@@ -1,6 +1,8 @@
 image: archlinux
 packages:
 - rustup
+- xorg-server
+- cmake
 repositories: {}
 shell: false
 sources:
