@@ -1,5 +1,5 @@
 use hexa::iced_wgpu::wgpu;
-use image::{ImageError, GenericImageView, DynamicImage};
+use image::{DynamicImage, GenericImageView, ImageError};
 
 pub struct Texture {
     pub texture: wgpu::Texture,

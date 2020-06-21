@@ -1,6 +1,6 @@
 use crate::Config;
-use crate::{RenderingState, compile_shaders, texture, Sprite};
-use hexa::{Camera, iced_wgpu::wgpu};
+use crate::{compile_shaders, texture, RenderingState, Sprite};
+use hexa::{iced_wgpu::wgpu, Camera};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -15,13 +15,11 @@ impl Vertex {
         wgpu::VertexBufferDescriptor {
             stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::InputStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttributeDescriptor {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float3,
-                },
-            ],
+            attributes: &[wgpu::VertexAttributeDescriptor {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float3,
+            }],
         }
     }
 }
@@ -57,18 +55,10 @@ impl Uniforms {
         let view = camera.view();
         let proj = camera.projection();
 
-        self.camera_right = nalgebra::Vector4::new(
-            view.column(0)[0],
-            view.column(1)[0],
-            view.column(2)[0],
-            1.0,
-        );
-        self.camera_up = nalgebra::Vector4::new(
-            view.column(0)[1],
-            view.column(1)[1],
-            view.column(2)[1],
-            1.0,
-        );
+        self.camera_right =
+            nalgebra::Vector4::new(view.column(0)[0], view.column(1)[0], view.column(2)[0], 1.0);
+        self.camera_up =
+            nalgebra::Vector4::new(view.column(0)[1], view.column(1)[1], view.column(2)[1], 1.0);
         self.view_proj = proj * view;
     }
 }
@@ -99,11 +89,7 @@ pub struct Quad {
 }
 
 impl Quad {
-    pub fn new(
-        rs: &RenderingState,
-        camera: &Camera,
-        config: &Config,
-    ) -> Self {
+    pub fn new(rs: &RenderingState, camera: &Camera, config: &Config) -> Self {
         // UNIFORMS
         let instance_buffer_size =
             (std::mem::size_of::<InstanceRaw>() * 250) as wgpu::BufferAddress;
@@ -166,11 +152,10 @@ impl Quad {
         // IMAGE
         let (diffuse_texture, cmd_buffer) = texture::Texture::from_bytes(
             &rs.device,
-            vec![
-                (include_bytes!("../../../img/sprite/stump.png"), "stump.png"),
-            ],
-            "quad textures"
-        ).unwrap();
+            vec![(include_bytes!("../../../img/sprite/stump.png"), "stump.png")],
+            "quad textures",
+        )
+        .unwrap();
         rs.queue.submit(&[cmd_buffer]);
 
         let texture_bind_group_layout =
@@ -220,8 +205,14 @@ impl Quad {
 
         // SHADERS
         let (vs_module, fs_module) = compile_shaders(
-            (include_str!("../../../shader/quad/shader.vert"), "quad/shader.vert"),
-            (include_str!("../../../shader/quad/shader.frag"), "quad/shader.frag"),
+            (
+                include_str!("../../../shader/quad/shader.vert"),
+                "quad/shader.vert",
+            ),
+            (
+                include_str!("../../../shader/quad/shader.frag"),
+                "quad/shader.frag",
+            ),
             rs,
         );
 
@@ -316,18 +307,22 @@ impl Quad {
             std::mem::size_of::<Uniforms>() as wgpu::BufferAddress,
         );
     }
-    
+
     pub fn set_sprites(
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         rs: &RenderingState,
-        sprites: Vec<Sprite>
+        sprites: Vec<Sprite>,
     ) {
         let instance_data = sprites
             .into_iter()
             .map(|t| {
                 use nalgebra::Vector3 as Vec3;
-                let Sprite { image, position: pos, scale, } = t;
+                let Sprite {
+                    image,
+                    position: pos,
+                    scale,
+                } = t;
 
                 InstanceRaw {
                     position: Vec3::new(pos.x, pos.y, 0.275),
@@ -338,8 +333,7 @@ impl Quad {
             .collect::<Vec<_>>();
         self.instances_count = instance_data.len();
 
-        let staging_buffer_size =
-            instance_data.len() * std::mem::size_of::<InstanceRaw>();
+        let staging_buffer_size = instance_data.len() * std::mem::size_of::<InstanceRaw>();
         let staging_buffer = rs.device.create_buffer_with_data(
             bytemuck::cast_slice(&instance_data),
             wgpu::BufferUsage::COPY_SRC,
@@ -354,10 +348,7 @@ impl Quad {
         );
     }
 
-    pub fn render<'a>(
-        &'a mut self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-    ) {
+    pub fn render<'a>(&'a mut self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
         render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);

@@ -1,17 +1,17 @@
-use hexa::{Camera, Tile, Sprite, iced_wgpu, iced_winit};
-use iced_wgpu::{wgpu, Renderer as IcedRenderer, Primitive as GuiPrimitive};
-use iced_winit::{winit, Debug as IcedDebug, mouse, Size};
+use hexa::{iced_wgpu, iced_winit, Camera, Sprite, Tile};
+use iced_wgpu::{wgpu, Primitive as GuiPrimitive, Renderer as IcedRenderer};
+use iced_winit::{mouse, winit, Debug as IcedDebug, Size};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-mod pipeline;
-mod texture;
-mod rendering_state;
 mod multisampled_framebuffer;
+mod pipeline;
+mod rendering_state;
+mod texture;
 
-pub use rendering_state::RenderingState;
 use multisampled_framebuffer::MultisampledFramebuffer;
-use pipeline::{HexPipeline, FullscreenTrianglePipeline, QuadPipeline};
+use pipeline::{FullscreenTrianglePipeline, HexPipeline, QuadPipeline};
+pub use rendering_state::RenderingState;
 
 pub struct Config {
     pub msaa: u32,
@@ -43,11 +43,8 @@ impl Renderer {
             msaa: 16,
         };
 
-        let multisampled_framebuffer = MultisampledFramebuffer::new(
-            &rs.device,
-            &rs.swap_chain_descriptor,
-            config.msaa,
-        );
+        let multisampled_framebuffer =
+            MultisampledFramebuffer::new(&rs.device, &rs.swap_chain_descriptor, config.msaa);
 
         let depth_texture = texture::Texture::create_depth_texture(
             &rs.device,
@@ -58,10 +55,8 @@ impl Renderer {
 
         let hex_pipeline = HexPipeline::new(&rs, &config.camera, &config);
         let quad_pipeline = QuadPipeline::new(&rs, &config.camera, &config);
-        let fullscreen_triangle_pipeline = FullscreenTrianglePipeline::new(
-            &rs,
-            multisampled_framebuffer.no_srgb_texture_view
-        );
+        let fullscreen_triangle_pipeline =
+            FullscreenTrianglePipeline::new(&rs, multisampled_framebuffer.no_srgb_texture_view);
 
         Self {
             framebuffer: multisampled_framebuffer.texture_view,
@@ -72,15 +67,11 @@ impl Renderer {
             rs,
             config,
             iced_renderer,
-            iced_debug
+            iced_debug,
         }
     }
 
-    pub fn resize(
-        &mut self,
-        screen: PhysicalSize<u32>,
-        window: &Window
-    ) {
+    pub fn resize(&mut self, screen: PhysicalSize<u32>, window: &Window) {
         self.rs.resize(screen, &window);
 
         self.depth_texture = texture::Texture::create_depth_texture(
@@ -93,12 +84,10 @@ impl Renderer {
         let multisampled_framebuffer = MultisampledFramebuffer::new(
             &self.rs.device,
             &self.rs.swap_chain_descriptor,
-            self.config.msaa
+            self.config.msaa,
         );
-        self.fullscreen_triangle_pipeline.resize(
-            multisampled_framebuffer.no_srgb_texture_view,
-            &self.rs
-        );
+        self.fullscreen_triangle_pipeline
+            .resize(multisampled_framebuffer.no_srgb_texture_view, &self.rs);
         self.framebuffer = multisampled_framebuffer.texture_view;
     }
 
@@ -136,7 +125,9 @@ impl Renderer {
                         1 => base,
                         _ => ColorPass {
                             attachment: &self.framebuffer,
-                            resolve_target: Some(&self.fullscreen_triangle_pipeline.no_srgb_framebuffer),
+                            resolve_target: Some(
+                                &self.fullscreen_triangle_pipeline.no_srgb_framebuffer,
+                            ),
                             ..base
                         },
                     }
@@ -156,21 +147,19 @@ impl Renderer {
             self.quad_pipeline.render(&mut render_pass);
         }
 
-        self.fullscreen_triangle_pipeline.render(&mut encoder, &frame.view);
+        self.fullscreen_triangle_pipeline
+            .render(&mut encoder, &frame.view);
 
         // And update the mouse cursor
         window.set_cursor_icon(iced_winit::conversion::mouse_interaction(
-            self
-                .iced_renderer
-                .backend_mut()
-                .draw(
-                    &mut self.rs.device,
-                    &mut encoder,
-                    &frame.view,
-                    &self.rs.viewport,
-                    gui,
-                    &self.iced_debug.overlay(),
-                )
+            self.iced_renderer.backend_mut().draw(
+                &mut self.rs.device,
+                &mut encoder,
+                &frame.view,
+                &self.rs.viewport,
+                gui,
+                &self.iced_debug.overlay(),
+            ),
         ));
 
         self.rs.queue.submit(&[encoder.finish()]);
@@ -198,7 +187,8 @@ impl hexa::Renderer for Renderer {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
-        self.quad_pipeline.set_sprites(&mut encoder, &self.rs, sprites);
+        self.quad_pipeline
+            .set_sprites(&mut encoder, &self.rs, sprites);
 
         self.rs.queue.submit(&[encoder.finish()]);
     }
@@ -210,16 +200,14 @@ impl hexa::Renderer for Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
 
         self.hex_pipeline.set_camera(&mut encoder, &self.rs, camera);
-        self.quad_pipeline.set_camera(&mut encoder, &self.rs, camera);
+        self.quad_pipeline
+            .set_camera(&mut encoder, &self.rs, camera);
 
         self.rs.queue.submit(&[encoder.finish()]);
     }
 
     fn iced_mut(&mut self) -> (&mut IcedRenderer, &mut IcedDebug) {
-        (
-            &mut self.iced_renderer,
-            &mut self.iced_debug,
-        )
+        (&mut self.iced_renderer, &mut self.iced_debug)
     }
 }
 
@@ -230,22 +218,10 @@ fn compile_shaders(
 ) -> (wgpu::ShaderModule, wgpu::ShaderModule) {
     let mut compiler = shaderc::Compiler::new().unwrap();
     let vs_spirv = compiler
-        .compile_into_spirv(
-            vs_src,
-            shaderc::ShaderKind::Vertex,
-            vs_lbl,
-            "main",
-            None,
-        )
+        .compile_into_spirv(vs_src, shaderc::ShaderKind::Vertex, vs_lbl, "main", None)
         .unwrap_or_else(|e| panic!("couldn't compile vertex shader: {}", e));
     let fs_spirv = compiler
-        .compile_into_spirv(
-            fs_src,
-            shaderc::ShaderKind::Fragment,
-            fs_lbl,
-            "main",
-            None,
-        )
+        .compile_into_spirv(fs_src, shaderc::ShaderKind::Fragment, fs_lbl, "main", None)
         .unwrap_or_else(|e| panic!("couldn't compile fragment shader: {}", e));
 
     let vs_data = wgpu::read_spirv(std::io::Cursor::new(vs_spirv.as_binary_u8())).unwrap();
@@ -253,6 +229,6 @@ fn compile_shaders(
 
     (
         rs.device.create_shader_module(&vs_data),
-        rs.device.create_shader_module(&fs_data)
+        rs.device.create_shader_module(&fs_data),
     )
 }

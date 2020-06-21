@@ -76,20 +76,26 @@ impl Program for Controls {
         use Message::*;
 
         match message {
-            SetTab(t) => self.tab = match t {
-                Tab::Save => {
-                    std::fs::write(
-                        "save.json",
-                        serde_json::to_string_pretty(self).expect("self not savaeable")
-                    )
-                    .expect("couldn't save");
+            SetTab(t) => {
+                self.tab = match t {
+                    Tab::Save => {
+                        std::fs::write(
+                            "save.json",
+                            serde_json::to_string_pretty(self).expect("self not savaeable"),
+                        )
+                        .expect("couldn't save");
 
-                    Tab::Home
-                },
-                other => other,
-            },
-            Camera(msg) => { self.camera_tab.update(msg); },
-            Tiling(msg) => { self.tiling_tab.update(msg); },
+                        Tab::Home
+                    }
+                    other => other,
+                }
+            }
+            Camera(msg) => {
+                self.camera_tab.update(msg);
+            }
+            Tiling(msg) => {
+                self.tiling_tab.update(msg);
+            }
         };
 
         Command::none()
