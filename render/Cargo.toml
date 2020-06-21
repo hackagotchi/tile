@@ -1,0 +1,17 @@
+[package]
+name = "render"
+version = "0.1.0"
+authors = ["Cedric Hutchings <cedhut02@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+log = "0.4.8"
+failure = "0.1.8"
+hexa = { path = "../hexa" }
+shaderc = "0.6.2"
+bytemuck = "1.2.0"
+nalgebra = "0.21.0"
+image = "0.23.4"
+futures = "0.3.4"
