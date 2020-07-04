@@ -1,4 +1,4 @@
-use hexa::{Scene, Renderer};
+use hexa::{Renderer, Scene};
 
 pub struct DynamicScene {
     scene: Box<dyn Scene>,
@@ -30,7 +30,7 @@ impl DynamicScene {
                 let init: libloading::Symbol<AddFunc> = lib.get(b"_scene_init").unwrap();
                 Box::from_raw(init(r))
             },
-            lib
+            lib,
         }
     }
 }

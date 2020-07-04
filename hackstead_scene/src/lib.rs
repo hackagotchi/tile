@@ -91,36 +91,38 @@ impl Scene for HacksteadScene {
 
             renderer.set_tiles(
                 (0..tiling_tab.size)
-                    .flat_map(|x| (0..tiling_tab.size).filter_map(move |y| {
-                        use hexa::na::Vector2 as Vec2;
-                        let position = Vec2::new(x, y);
-                        let noise = perlin.get([x as f64 / g, y as f64 / g]) as f32 * e;
+                    .flat_map(|x| {
+                        (0..tiling_tab.size).filter_map(move |y| {
+                            use hexa::na::Vector2 as Vec2;
+                            let position = Vec2::new(x, y);
+                            let noise = perlin.get([x as f64 / g, y as f64 / g]) as f32 * e;
 
-                        let mut tiles = vec![Tile {
-                            position,
-                            elevation: 0.0,
-                            hat: 2,
-                            butt: 3,
-                            butt_size: noise + 0.3,
-                        }];
-
-                        if noise > e / 2.0 {
-                            tiles.push(Tile {
+                            let mut tiles = vec![Tile {
                                 position,
                                 elevation: 0.0,
-                                hat: 0,
-                                butt: 1,
-                                butt_size: noise * (noise / 1.5) * 0.4,
-                            });
-                        }
+                                hat: 2,
+                                butt: 3,
+                                butt_size: noise + 0.3,
+                            }];
 
-                        if noise > 0.0 {
-                            Some(tiles)
-                        } else {
-                            None
-                        }
-                    }))
-                    .collect()
+                            if noise > e / 2.0 {
+                                tiles.push(Tile {
+                                    position,
+                                    elevation: 0.0,
+                                    hat: 0,
+                                    butt: 1,
+                                    butt_size: noise * (noise / 1.5) * 0.4,
+                                });
+                            }
+
+                            if noise > 0.0 {
+                                Some(tiles)
+                            } else {
+                                None
+                            }
+                        })
+                    })
+                    .collect(),
             );
 
             self.gui.queue_message(controls::Message::Tiling(

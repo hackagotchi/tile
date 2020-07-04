@@ -4,7 +4,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
 };
 
-#[cfg(feature="dyn")]
+#[cfg(feature = "dyn")]
 mod dynamic_scene;
 
 fn main() {
@@ -20,10 +20,10 @@ fn main() {
 
     let mut renderer = render::Renderer::new(&window);
 
-    #[cfg(not(feature="dyn"))]
+    #[cfg(not(feature = "dyn"))]
     let mut scene = hackstead_scene::HacksteadScene::new(&mut renderer);
 
-    #[cfg(feature="dyn")]
+    #[cfg(feature = "dyn")]
     let mut scene = dynamic_scene::DynamicScene::new(&mut renderer);
 
     event_loop.run(move |event, _, control_flow| {
@@ -40,7 +40,7 @@ fn main() {
                         modifiers = *new_modifiers;
                     }
                     WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                    #[cfg(feature="dyn")]
+                    #[cfg(feature = "dyn")]
                     WindowEvent::KeyboardInput { input, .. } => match input {
                         winit::event::KeyboardInput {
                             state: winit::event::ElementState::Pressed,
@@ -48,7 +48,7 @@ fn main() {
                             ..
                         } => {
                             scene = dynamic_scene::DynamicScene::new(&mut renderer);
-                        },
+                        }
                         _ => {}
                     },
                     &WindowEvent::Resized(new_size) => {
