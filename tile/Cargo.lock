@@ -2179,6 +2179,8 @@ version = "0.1.0"
 dependencies = [
  "hackstead_scene",
  "hexa",
+ "libloading 0.6.2",
+ "log",
  "pretty_env_logger",
  "render",
 ]

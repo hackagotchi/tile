@@ -6,8 +6,15 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+dyn = [ "libloading" ]
+static = [ "hackstead_scene" ]
+default = [ "static" ]
+
 [dependencies]
 pretty_env_logger = "0.4.0"
 hexa = { path = "../hexa" }
 render = { path = "../render" }
-hackstead_scene = { path = "../hackstead_scene" }
+hackstead_scene = { path = "../hackstead_scene", optional = true }
+libloading = { version = "0.6.2", optional = true }
+log = "0.4.8"

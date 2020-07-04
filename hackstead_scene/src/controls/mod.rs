@@ -50,7 +50,7 @@ pub struct Controls {
 
 impl Controls {
     pub fn new() -> Controls {
-        dbg!(Self {
+        Self {
             tab: Tab::Home,
             tab_buttons: Tab::ALL
                 .iter()
@@ -64,7 +64,7 @@ impl Controls {
                     log::error!("no save found");
                     Default::default()
                 })
-        })
+        }
     }
 }
 
