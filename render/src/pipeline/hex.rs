@@ -1,13 +1,13 @@
 use crate::Config;
-use crate::{RenderingState, compile_shaders, texture, Tile};
-use hexa::{Camera, iced_wgpu::wgpu};
+use crate::{compile_shaders, texture, RenderingState, Tile};
+use hexa::{iced_wgpu::wgpu, Camera};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct Vertex {
     position: [f32; 3],
     tex_coords: [f32; 2],
-    image: u16
+    image: u16,
 }
 unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
@@ -29,7 +29,8 @@ impl Vertex {
                     format: wgpu::VertexFormat::Float2,
                 },
                 wgpu::VertexAttributeDescriptor {
-                    offset: (mem::size_of::<[f32; 3]>() + mem::size_of::<[f32; 2]>()) as wgpu::BufferAddress,
+                    offset: (mem::size_of::<[f32; 3]>() + mem::size_of::<[f32; 2]>())
+                        as wgpu::BufferAddress,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Uint,
                 },
@@ -112,11 +113,7 @@ pub struct Hex {
 }
 
 impl Hex {
-    pub fn new(
-        rs: &RenderingState,
-        camera: &Camera,
-        config: &Config,
-    ) -> Self {
+    pub fn new(rs: &RenderingState, camera: &Camera, config: &Config) -> Self {
         // UNIFORMS
         let instance_buffer_size =
             (std::mem::size_of::<InstanceRaw>() * 250) as wgpu::BufferAddress;
@@ -180,13 +177,26 @@ impl Hex {
         let (diffuse_texture, cmd_buffer) = texture::Texture::from_bytes(
             &rs.device,
             vec![
-                (include_bytes!("../../../img/hex/ice_hat.png"), "ice_hat.png"),
-                (include_bytes!("../../../img/hex/ice_butt.png"), "ice_butt.png"),
-                (include_bytes!("../../../img/hex/snow_hat.png"), "snow_hat.png"),
-                (include_bytes!("../../../img/hex/snow_butt.png"), "snow_butt.png"),
+                (
+                    include_bytes!("../../../img/hex/ice_hat.png"),
+                    "ice_hat.png",
+                ),
+                (
+                    include_bytes!("../../../img/hex/ice_butt.png"),
+                    "ice_butt.png",
+                ),
+                (
+                    include_bytes!("../../../img/hex/snow_hat.png"),
+                    "snow_hat.png",
+                ),
+                (
+                    include_bytes!("../../../img/hex/snow_butt.png"),
+                    "snow_butt.png",
+                ),
             ],
-            "tile textures"
-        ).unwrap();
+            "tile textures",
+        )
+        .unwrap();
         rs.queue.submit(&[cmd_buffer]);
 
         let texture_bind_group_layout =
@@ -236,8 +246,14 @@ impl Hex {
 
         // SHADERS
         let (vs_module, fs_module) = compile_shaders(
-            (include_str!("../../../shader/hex/shader.vert"), "hex/shader.vert"),
-            (include_str!("../../../shader/hex/shader.frag"), "hex/shader.frag"),
+            (
+                include_str!("../../../shader/hex/shader.vert"),
+                "hex/shader.vert",
+            ),
+            (
+                include_str!("../../../shader/hex/shader.frag"),
+                "hex/shader.frag",
+            ),
             rs,
         );
 
@@ -329,7 +345,7 @@ impl Hex {
         &mut self,
         encoder: &mut wgpu::CommandEncoder,
         rs: &RenderingState,
-        tiles: Vec<Vec<Tile>>
+        tiles: Vec<Vec<Tile>>,
     ) {
         let instance_data = tiles
             .into_iter()
@@ -347,14 +363,20 @@ impl Hex {
             })
             .map(|t| {
                 use nalgebra::Vector3 as Vec3;
-                let Tile { elevation, position: p, hat, butt, butt_size } = t;
+                let Tile {
+                    elevation,
+                    position: p,
+                    hat,
+                    butt,
+                    butt_size,
+                } = t;
                 let w: f32 = 3.0_f32.sqrt();
                 let h: f32 = 2.0;
 
                 let position = Vec3::new(
                     (p.x * 2 + (p.y & 1)) as f32 / 2.0 * w,
                     ((3.0 / 4.0) * p.y as f32) * h,
-                    elevation
+                    elevation,
                 );
                 let model = nalgebra::Matrix4::new_translation(&position)
                     * nalgebra::Matrix4::new_nonuniform_scaling(&Vec3::new(1.0, 1.0, butt_size));
@@ -367,8 +389,7 @@ impl Hex {
             .collect::<Vec<_>>();
         self.instances_count = instance_data.len();
 
-        let staging_buffer_size =
-            instance_data.len() * std::mem::size_of::<InstanceRaw>();
+        let staging_buffer_size = instance_data.len() * std::mem::size_of::<InstanceRaw>();
         let staging_buffer = rs.device.create_buffer_with_data(
             bytemuck::cast_slice(&instance_data),
             wgpu::BufferUsage::COPY_SRC,
@@ -383,10 +404,7 @@ impl Hex {
         );
     }
 
-    pub fn render<'a>(
-        &'a mut self,
-        render_pass: &mut wgpu::RenderPass<'a>,
-    ) {
+    pub fn render<'a>(&'a mut self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]); // NEW!
         render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);

@@ -80,9 +80,7 @@ impl Program for CameraControls {
             .padding(10)
             .push(labeled_slider(
                 "FOV",
-                Slider::new(fov, 0.0..=PI, self.fov, move |f| {
-                    Message::FovChanged(f)
-                }),
+                Slider::new(fov, 0.0..=PI, self.fov, move |f| Message::FovChanged(f)),
             ))
             .push(labeled_slider(
                 "Height",

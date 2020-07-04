@@ -1,8 +1,8 @@
+use hexa::{camera::Camera, Renderer, Scene, Sprite, Tile};
 use hexa::{iced_wgpu, iced_winit};
-use iced_wgpu::{Primitive as GuiPrimitive};
-use iced_winit::{program, winit, mouse};
-use winit::event::{WindowEvent, ModifiersState};
-use hexa::{camera::Camera, Scene, Renderer, Tile, Sprite};
+use iced_wgpu::Primitive as GuiPrimitive;
+use iced_winit::{mouse, program, winit};
+use winit::event::{ModifiersState, WindowEvent};
 
 mod controls;
 use controls::Controls;
@@ -33,26 +33,17 @@ impl HacksteadScene {
     }
 }
 impl Scene for HacksteadScene {
-    fn event(
-        &mut self,
-        event: &WindowEvent,
-        scale_factor: f64,
-        modifiers: ModifiersState,
-    ) {
+    fn event(&mut self, event: &WindowEvent, scale_factor: f64, modifiers: ModifiersState) {
         match event {
             WindowEvent::Resized(new_size) => {
-                self.camera.resize(
-                    new_size.width as f32,
-                    new_size.height as f32
-                );
+                self.camera
+                    .resize(new_size.width as f32, new_size.height as f32);
             }
             _ => {}
         }
 
         // Map window event to iced event
-        if let Some(event) =
-            iced_winit::conversion::window_event(&event, scale_factor, modifiers)
-        {
+        if let Some(event) = iced_winit::conversion::window_event(&event, scale_factor, modifiers) {
             self.gui.queue_event(event);
         }
     }
@@ -67,7 +58,6 @@ impl Scene for HacksteadScene {
         let _ = self.gui.update(None, screen, render, debug);
 
         if self.first_frame {
-
             renderer.set_sprites(vec![Sprite {
                 image: 0,
                 position: hexa::na::Vector2::new(8.0, 7.5),
@@ -77,19 +67,23 @@ impl Scene for HacksteadScene {
             self.first_frame = false;
         }
 
-        let Controls { tiling_tab, camera_tab, .. } = self.gui.program();
+        let Controls {
+            tiling_tab,
+            camera_tab,
+            ..
+        } = self.gui.program();
 
         renderer.set_camera({
             self.camera.eye.z = camera_tab.height;
             self.camera.set_angle(camera_tab.angle, camera_tab.distance);
-            self.camera.target = hexa::na::Point3::new(1.0, 1.0, 0.0)
-                * (tiling_tab.size as f32 / 2.0 + 1.0);
+            self.camera.target =
+                hexa::na::Point3::new(1.0, 1.0, 0.0) * (tiling_tab.size as f32 / 2.0 + 1.0);
             self.camera.fovy = camera_tab.fov;
             &self.camera
         });
 
         if tiling_tab.dirty {
-            use noise::{Seedable, NoiseFn};
+            use noise::{NoiseFn, Seedable};
 
             let perlin = noise::Perlin::new().set_seed(tiling_tab.seed);
             let g = tiling_tab.size as f64;
@@ -129,9 +123,9 @@ impl Scene for HacksteadScene {
                     .collect()
             );
 
-            self.gui.queue_message(
-                controls::Message::Tiling(controls::tiling::Message::Retiled)
-            );
+            self.gui.queue_message(controls::Message::Tiling(
+                controls::tiling::Message::Retiled,
+            ));
         }
     }
 }

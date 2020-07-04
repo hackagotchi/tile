@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "hackstead_scene",
+    "hexa",
+    "render",
+    "tile"
+]

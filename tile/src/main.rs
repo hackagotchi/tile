@@ -57,11 +57,7 @@ fn main() {
                     _ => {}
                 }
 
-                scene.event(
-                    event,
-                    window.scale_factor(),
-                    modifiers
-                );
+                scene.event(event, window.scale_factor(), modifiers);
             }
             Event::MainEventsCleared => {
                 scene.update(&mut renderer);
@@ -69,10 +65,7 @@ fn main() {
                 // and request a redraw
                 window.request_redraw();
             }
-            Event::RedrawRequested(_) => {
-                let gp = scene.gui_primitive();
-                renderer.render(&window, gp)
-            },
+            Event::RedrawRequested(_) => renderer.render(&window, scene.gui_primitive()),
             _ => {}
         }
     });

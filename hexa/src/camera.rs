@@ -42,7 +42,7 @@ impl Camera {
         nalgebra::Matrix4::look_at_rh(
             &(self.eye.coords + self.target.coords).into(),
             &self.target,
-            &self.up
+            &self.up,
         )
     }
 

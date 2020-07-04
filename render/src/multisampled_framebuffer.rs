@@ -2,7 +2,7 @@ use hexa::iced_wgpu::wgpu;
 
 pub struct MultisampledFramebuffer {
     pub texture_view: wgpu::TextureView,
-    pub no_srgb_texture_view: wgpu::TextureView
+    pub no_srgb_texture_view: wgpu::TextureView,
 }
 impl MultisampledFramebuffer {
     pub fn new(

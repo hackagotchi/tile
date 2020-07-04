@@ -2,11 +2,11 @@ pub use iced_wgpu;
 pub use iced_winit;
 pub use nalgebra as na;
 
+use iced_wgpu::Primitive as GuiPrimitive;
 pub use iced_wgpu::Renderer as IcedRenderer;
 pub use iced_winit::Debug as IcedDebug;
-use iced_wgpu::Primitive as GuiPrimitive;
-use iced_winit::{winit, mouse, Size};
-use winit::event::{WindowEvent, ModifiersState};
+use iced_winit::{mouse, winit, Size};
+use winit::event::{ModifiersState, WindowEvent};
 
 pub mod camera;
 pub use camera::Camera;
@@ -35,12 +35,7 @@ pub trait Renderer {
 }
 
 pub trait Scene {
-    fn event(
-        &mut self,
-        event: &WindowEvent,
-        scale_factor: f64,
-        modifiers: ModifiersState,
-    );
+    fn event(&mut self, event: &WindowEvent, scale_factor: f64, modifiers: ModifiersState);
 
     fn gui_primitive(&self) -> &(GuiPrimitive, mouse::Interaction);
 

@@ -72,7 +72,7 @@ impl Program for TilingControls {
             ElevationChanged(e) => {
                 self.data.elevation = e;
                 self.dirty = true;
-            },
+            }
             SizeChanged(size) => {
                 self.data.size = size;
                 self.dirty = true;
@@ -90,7 +90,11 @@ impl Program for TilingControls {
     }
 
     fn view(&mut self) -> Element<Message, Renderer> {
-        let Sliders { elevation, size, seed } = &mut self.sliders;
+        let Sliders {
+            elevation,
+            size,
+            seed,
+        } = &mut self.sliders;
         let data = self.data.clone();
 
         let labeled_slider = |label, slider| {
