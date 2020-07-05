@@ -6,6 +6,8 @@ use winit::{
 
 #[cfg(feature = "dyn")]
 mod dynamic_scene;
+#[cfg(not(feature = "dyn"))]
+use hexa::Scene;
 
 fn main() {
     pretty_env_logger::init();
