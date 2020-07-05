@@ -7,6 +7,12 @@ use winit::event::{ModifiersState, WindowEvent};
 mod controls;
 use controls::Controls;
 
+#[no_mangle]
+pub fn _scene_init(r: &mut dyn Renderer) -> *mut dyn Scene {
+    println!("initializing scene");
+    Box::into_raw(Box::new(HacksteadScene::new(r)))
+}
+
 pub struct HacksteadScene {
     gui: program::State<Controls>,
     camera: Camera,
@@ -94,8 +100,8 @@ impl Scene for HacksteadScene {
                             let mut tiles = vec![Tile {
                                 position,
                                 elevation: 0.0,
-                                hat: 0,
-                                butt: 1,
+                                hat: 2,
+                                butt: 3,
                                 butt_size: noise + 0.3,
                             }];
 
@@ -103,8 +109,8 @@ impl Scene for HacksteadScene {
                                 tiles.push(Tile {
                                     position,
                                     elevation: 0.0,
-                                    hat: 2,
-                                    butt: 3,
+                                    hat: 0,
+                                    butt: 1,
                                     butt_size: noise * (noise / 1.5) * 0.4,
                                 });
                             }

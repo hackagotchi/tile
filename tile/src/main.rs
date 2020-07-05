@@ -4,9 +4,12 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
 };
 
-fn main() {
-    use hexa::Scene;
+#[cfg(feature = "dyn")]
+mod dynamic_scene;
+#[cfg(not(feature = "dyn"))]
+use hexa::Scene;
 
+fn main() {
     pretty_env_logger::init();
 
     let event_loop = EventLoop::new();
@@ -18,7 +21,12 @@ fn main() {
     let mut modifiers = ModifiersState::default();
 
     let mut renderer = render::Renderer::new(&window);
+
+    #[cfg(not(feature = "dyn"))]
     let mut scene = hackstead_scene::HacksteadScene::new(&mut renderer);
+
+    #[cfg(feature = "dyn")]
+    let mut scene = dynamic_scene::DynamicScene::new(&mut renderer);
 
     event_loop.run(move |event, _, control_flow| {
         // You should change this if you want to render continuosly
@@ -34,12 +42,15 @@ fn main() {
                         modifiers = *new_modifiers;
                     }
                     WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    #[cfg(feature = "dyn")]
                     WindowEvent::KeyboardInput { input, .. } => match input {
                         winit::event::KeyboardInput {
                             state: winit::event::ElementState::Pressed,
                             virtual_keycode: Some(winit::event::VirtualKeyCode::Escape),
                             ..
-                        } => *control_flow = ControlFlow::Exit,
+                        } => {
+                            scene = dynamic_scene::DynamicScene::new(&mut renderer);
+                        }
                         _ => {}
                     },
                     &WindowEvent::Resized(new_size) => {
