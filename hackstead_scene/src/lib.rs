@@ -4,17 +4,17 @@ use iced_wgpu::Primitive as GuiPrimitive;
 use iced_winit::{mouse, program, winit};
 use winit::event::{ModifiersState, WindowEvent};
 
-mod controls;
-use controls::Controls;
+mod gui;
+use gui::Gui;
 
 #[no_mangle]
 pub fn _scene_init(r: &mut dyn Renderer) -> *mut dyn Scene {
-    println!("initializing scene");
+    println!("initializing new scene");
     Box::into_raw(Box::new(HacksteadScene::new(r)))
 }
 
 pub struct HacksteadScene {
-    gui: program::State<Controls>,
+    gui: program::State<Gui>,
     camera: Camera,
     first_frame: bool,
 }
@@ -23,7 +23,7 @@ impl HacksteadScene {
         let screen = r.screen_size();
         let camera = Camera::new(screen.width as f32, screen.height as f32);
         let (render, debug) = r.iced_mut();
-        let gui = program::State::new(Controls::new(), screen, render, debug);
+        let gui = program::State::new(Gui::new(), screen, render, debug);
 
         Self {
             gui,
@@ -67,9 +67,12 @@ impl Scene for HacksteadScene {
             self.first_frame = false;
         }
 
-        let Controls {
-            tiling_tab,
-            camera_tab,
+        let Gui {
+            dev_controls: gui::dev_controls::Controls {
+                tiling_tab,
+                camera_tab,
+                ..
+            },
             ..
         } = self.gui.program();
 
@@ -125,8 +128,10 @@ impl Scene for HacksteadScene {
                     .collect(),
             );
 
-            self.gui.queue_message(controls::Message::Tiling(
-                controls::tiling::Message::Retiled,
+            self.gui.queue_message(gui::Message::DevControls(
+                gui::dev_controls::Message::Tiling(
+                    gui::dev_controls::tiling::Message::Retiled
+                ),
             ));
         }
     }

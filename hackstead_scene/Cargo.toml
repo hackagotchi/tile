@@ -5,7 +5,7 @@ authors = ["Cedric Hutchings <cedhut02@gmail.com>"]
 edition = "2018"
 
 [lib]
-crate-type = [ "lib", "dylib" ]
+crate-type = [ "lib", "cdylib" ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,3 +19,8 @@ serde = { version = "1.0.112", features = [ "derive" ] }
 rand = "0.7.3"
 noise = "0.6.0"
 log = "0.4.8"
+
+[dependencies.hcor]
+git = "https://github.com/hackagotchi/hcor.git"
+branch = "client_feature"
+features = [ "client" ]

@@ -49,7 +49,7 @@ fn main() {
                             virtual_keycode: Some(winit::event::VirtualKeyCode::Escape),
                             ..
                         } => {
-                            scene = dynamic_scene::DynamicScene::new(&mut renderer);
+                            scene = scene.reloaded(&mut renderer);
                         }
                         _ => {}
                     },
