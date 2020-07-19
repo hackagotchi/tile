@@ -6,19 +6,19 @@ packages:
 repositories: {}
 shell: false
 sources:
-  - https://git.sr.ht/~muirrum/hackagotchi-graphical
+  - https://github.com/hackagotchi/tile.git
 tasks:
 - setup: |
     rustup toolchain install stable
-    cd hackagotchi-graphical/
+    cd tile/
     rustup run stable cargo fetch
 - format: |
     rustup default stable
-    cd hackagotchi-graphical/
+    cd tile/
     cargo fmt -- --check
 - stable: |
     rustup default stable
-    cd hackagotchi-graphical/
+    cd tile/
     cargo build
     cargo test
 
