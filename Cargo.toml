@@ -4,5 +4,6 @@ members = [
     "hackstead_scene",
     "hexa",
     "render",
-    "tile"
+    "tile",
+    "launcher",
 ]
